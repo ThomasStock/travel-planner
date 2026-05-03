@@ -23,6 +23,8 @@ interface ItineraryStop {
 interface ItinerarySegment {
   from?: string;
   to?: string;
+  mapFrom?: string;
+  mapTo?: string;
   mode?: TravelMode;
   title?: string;
   duration?: string;
@@ -705,8 +707,8 @@ class TripMap extends LitElement {
     }
 
     for (const segment of this.segments) {
-      const from = this.#stopById(segment.from);
-      const to = this.#stopById(segment.to);
+      const from = this.#stopById(segment.mapFrom || segment.from);
+      const to = this.#stopById(segment.mapTo || segment.to);
       if (!from || !to) {
         continue;
       }
