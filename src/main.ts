@@ -117,18 +117,26 @@ class TravelItinerary extends LitElement {
   static properties = {
     data: { attribute: false },
     selectedStopId: { attribute: false },
+    mobileMapStuck: { type: Boolean, reflect: true, attribute: "mobile-map-stuck" },
   };
 
   data: ItineraryData = emptyItinerary();
   selectedStopId = "";
+  mobileMapStuck = false;
+  #mobileMapStateFrame = 0;
 
   static styles = css`
     :host {
       display: block;
       min-height: 100vh;
-      color: #171b22;
-      background: radial-gradient(circle at 15% 12%, rgba(0, 144, 128, 0.12), transparent 28rem),
+      --mobile-map-height: 25dvh;
+      --mobile-map-fade-height: 44px;
+      --mobile-map-gap: 84px;
+      --mobile-first-stop-space: 40px;
+      --page-background: radial-gradient(circle at 15% 12%, rgba(0, 144, 128, 0.12), transparent 28rem),
         linear-gradient(135deg, #fbfaf7 0%, #f3f7f5 48%, #f8f4f0 100%);
+      color: #171b22;
+      background: var(--page-background);
       font-family:
         Inter,
         ui-sans-serif,
@@ -211,13 +219,39 @@ class TravelItinerary extends LitElement {
 
       .layout {
         grid-template-columns: 1fr;
+        gap: 0;
       }
 
       trip-map {
-        position: static;
+        position: sticky;
+        top: 0;
         order: -1;
-        width: 100%;
-        z-index: auto;
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        margin-bottom: calc(var(--mobile-map-gap) - var(--mobile-map-height));
+        z-index: 12;
+      }
+
+      trip-timeline {
+        padding-top: calc(var(--mobile-map-height) - var(--mobile-map-gap) + var(--mobile-first-stop-space));
+      }
+
+      :host([mobile-map-stuck]) trip-map::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 100%;
+        left: 0;
+        height: var(--mobile-map-fade-height);
+        background-image: var(--page-background);
+        background-repeat: no-repeat;
+        background-size: 100vw 100vh;
+        background-position: center top;
+        -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.9) 28%, rgba(0, 0, 0, 0) 100%);
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.9) 28%, rgba(0, 0, 0, 0) 100%);
+        pointer-events: none;
+        z-index: 13;
       }
     }
   `;
@@ -227,6 +261,64 @@ class TravelItinerary extends LitElement {
     if (!this.data?.stops?.length) {
       this.data = this.#readData();
       this.selectedStopId = this.data.stops?.[0]?.id || "";
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("scroll", this.#queueMobileMapStateSync, { passive: true });
+      window.addEventListener("resize", this.#queueMobileMapStateSync);
+    }
+  }
+
+  firstUpdated() {
+    this.#syncMobileMapState();
+  }
+
+  disconnectedCallback() {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("scroll", this.#queueMobileMapStateSync);
+      window.removeEventListener("resize", this.#queueMobileMapStateSync);
+    }
+
+    if (this.#mobileMapStateFrame) {
+      cancelAnimationFrame(this.#mobileMapStateFrame);
+      this.#mobileMapStateFrame = 0;
+    }
+
+    super.disconnectedCallback();
+  }
+
+  #queueMobileMapStateSync = () => {
+    if (this.#mobileMapStateFrame) {
+      return;
+    }
+
+    this.#mobileMapStateFrame = requestAnimationFrame(() => {
+      this.#mobileMapStateFrame = 0;
+      this.#syncMobileMapState();
+    });
+  };
+
+  #syncMobileMapState() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const isCompactScreen = window.matchMedia("(max-width: 860px)").matches;
+    const mapElement = this.renderRoot.querySelector("trip-map");
+    if (!isCompactScreen || !mapElement) {
+      if (this.mobileMapStuck) {
+        this.mobileMapStuck = false;
+      }
+      return;
+    }
+
+    const mapTop = mapElement.getBoundingClientRect().top;
+    const engageThreshold = 0.5;
+    const releaseThreshold = 24;
+    const nextState = this.mobileMapStuck ? mapTop <= releaseThreshold : mapTop <= engageThreshold;
+
+    if (nextState !== this.mobileMapStuck) {
+      this.mobileMapStuck = nextState;
     }
   }
 
@@ -787,15 +879,20 @@ class TripMap extends LitElement {
 
       @media (max-width: 860px) {
         .map {
-          height: 360px;
-          min-height: 360px;
+          height: var(--mobile-map-height, 25dvh);
+          min-height: var(--mobile-map-height, 25dvh);
+          max-height: var(--mobile-map-height, 25dvh);
+          border-right: 0;
+          border-left: 0;
+          border-radius: 0;
         }
       }
 
       @media (max-width: 520px) {
         .map {
-          height: 320px;
-          min-height: 320px;
+          height: var(--mobile-map-height, 25dvh);
+          min-height: var(--mobile-map-height, 25dvh);
+          max-height: var(--mobile-map-height, 25dvh);
         }
       }
     `,
