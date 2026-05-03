@@ -224,7 +224,8 @@ class TravelItinerary extends LitElement {
         position: sticky;
         top: 0;
         order: -1;
-        width: auto;
+        width: calc(100% + (var(--shell-inline-padding) * 2));
+        max-width: none;
         margin-left: calc(var(--shell-inline-padding) * -1);
         margin-right: calc(var(--shell-inline-padding) * -1);
         margin-bottom: calc(var(--mobile-map-gap) - var(--mobile-map-height));
