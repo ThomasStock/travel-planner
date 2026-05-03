@@ -914,9 +914,12 @@ class TripMap extends LitElement {
   #lastRenderedKey = "";
   #lastViewportKey = "";
   #lastMeasuredMapHeight = 0;
+  #usingFallbackFullscreen = false;
   #onFullscreenChange = () => {
     const frame = this.renderRoot.querySelector<HTMLElement>(".frame");
-    this.isFullscreen = document.fullscreenElement === frame;
+    const isNativeFullscreen = document.fullscreenElement === frame;
+    this.#usingFallbackFullscreen = this.#usingFallbackFullscreen && !isNativeFullscreen;
+    this.isFullscreen = isNativeFullscreen || this.#usingFallbackFullscreen;
     requestAnimationFrame(() => {
       this.#syncDesktopMapHeight();
       this.#map?.invalidateSize();
@@ -938,6 +941,13 @@ class TripMap extends LitElement {
         isolation: isolate;
       }
 
+      .frame.is-fullscreen {
+        position: fixed;
+        inset: 0;
+        z-index: 4000;
+        background: #d9eeed;
+      }
+
       .frame:fullscreen {
         background: #d9eeed;
       }
@@ -956,6 +966,16 @@ class TripMap extends LitElement {
       .frame:fullscreen .map {
         height: 100dvh;
         min-height: 100dvh;
+        max-height: 100dvh;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .frame.is-fullscreen .map {
+        height: 100dvh;
+        min-height: 100dvh;
+        max-height: 100dvh;
         border: 0;
         border-radius: 0;
         box-shadow: none;
@@ -1120,6 +1140,7 @@ class TripMap extends LitElement {
     document.removeEventListener("fullscreenchange", this.#onFullscreenChange);
     window.removeEventListener("scroll", this.#onViewportChange);
     window.removeEventListener("resize", this.#onViewportChange);
+    this.#setFallbackFullscreen(false);
     this.#map?.remove();
     this.#map = undefined;
     super.disconnectedCallback();
@@ -1149,21 +1170,45 @@ class TripMap extends LitElement {
     }
   }
 
+  #setFallbackFullscreen(nextValue: boolean) {
+    this.#usingFallbackFullscreen = nextValue;
+    document.documentElement.style.overflow = nextValue ? "hidden" : "";
+    document.body.style.overflow = nextValue ? "hidden" : "";
+
+    const frame = this.renderRoot.querySelector<HTMLElement>(".frame");
+    this.isFullscreen = nextValue || document.fullscreenElement === frame;
+    requestAnimationFrame(() => {
+      this.#syncDesktopMapHeight();
+      this.#map?.invalidateSize();
+    });
+  }
+
   async #toggleFullscreen() {
     const frame = this.renderRoot.querySelector<HTMLElement>(".frame");
-    if (!frame || typeof frame.requestFullscreen !== "function") {
+    if (!frame) {
+      return;
+    }
+
+    if (this.#usingFallbackFullscreen) {
+      this.#setFallbackFullscreen(false);
       return;
     }
 
     try {
       if (document.fullscreenElement === frame) {
         await document.exitFullscreen();
-      } else {
+        return;
+      }
+
+      if (typeof frame.requestFullscreen === "function") {
         await frame.requestFullscreen();
+        return;
       }
     } catch (error) {
       console.error("Unable to toggle fullscreen map", error);
     }
+
+    this.#setFallbackFullscreen(true);
   }
 
   #stopById(id?: string): MappedStop | undefined {
@@ -1358,7 +1403,7 @@ class TripMap extends LitElement {
     const label = this.isFullscreen ? "Exit fullscreen map" : "Fullscreen map";
 
     return html`
-      <section class="frame">
+      <section class=${this.isFullscreen ? "frame is-fullscreen" : "frame"}>
         <div class="controls">
           <button class="fullscreen-toggle" type="button" aria-label=${label} title=${label} @click=${this.#toggleFullscreen}>
             ${icon}
