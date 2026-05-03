@@ -1,0 +1,27 @@
+{
+  "name": "travel-planner",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThomasStock/travel-planner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/ThomasStock/travel-planner/issues"
+  },
+  "homepage": "https://github.com/ThomasStock/travel-planner#readme",
+  "description": "Lit web components for visualizing a travel itinerary.",
+  "dependencies": {
+    "lit": "^3.3.2",
+    "vite": "^8.0.10"
+  }
+}
