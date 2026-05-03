@@ -123,11 +123,23 @@
               }
             },
             {
+              "id": "agger",
+              "title": "Agger",
+              "countryCode": "DK",
+              "kind": "transfer",
+              "timestamp": "Transfer point",
+              "description": "Roll off the ferry at Agger and head straight into the quiet roads and dune landscapes of Thy National Park.",
+              "location": {
+                "lat": 56.7827,
+                "lng": 8.2484
+              }
+            },
+            {
               "id": "klitmoeller",
               "title": "Klitmøller",
               "countryCode": "DK",
               "date": "June 30",
-              "description": "Take the ferry across the Thyborøn Channel, then ride through Thy National Park to Cold Hawaii.",
+              "description": "Ride north from Agger through Thy National Park to Cold Hawaii and settle in Klitmøller for the night.",
               "location": {
                 "lat": 57.0406,
                 "lng": 8.4903
@@ -165,6 +177,18 @@
               "location": {
                 "lat": 57.7209,
                 "lng": 10.5839
+              }
+            },
+            {
+              "id": "hamburg-return",
+              "title": "Hamburg",
+              "countryCode": "DE",
+              "kind": "transfer",
+              "timestamp": "Rail transfer",
+              "description": "Change trains in Hamburg on the way back south before continuing through Cologne and Brussels toward Ghent.",
+              "location": {
+                "lat": 53.5488,
+                "lng": 9.9872
               }
             },
             {
@@ -255,12 +279,20 @@
             },
             {
               "from": "thyboroen",
-              "to": "klitmoeller",
+              "to": "agger",
               "mode": "ferry",
-              "title": "Ferry to Agger, then Thy National Park",
-              "duration": "ferry hourly, then 4-5h riding",
-              "distance": "74 km",
-              "description": "Take the Thyborøn-Agger ferry, then ride quiet roads through Thy National Park."
+              "title": "Ferry to Agger",
+              "duration": "ferry hourly",
+              "description": "Take the Thyborøn-Agger ferry across the channel for a clean break between the water crossing and the riding day."
+            },
+            {
+              "from": "agger",
+              "to": "klitmoeller",
+              "mode": "bike",
+              "title": "Ride through Thy National Park",
+              "duration": "4-5h riding",
+              "distance": "about 66 km",
+              "description": "From Agger, follow quiet roads through dunes and heath toward Klitmøller and the Cold Hawaii coast."
             },
             {
               "from": "klitmoeller",
@@ -291,13 +323,21 @@
             },
             {
               "from": "skagen",
-              "to": "ghent-return",
-              "mapTo": "hamburg",
+              "to": "hamburg-return",
               "mode": "train",
-              "title": "Skagen to Ghent by rail",
-              "duration": "06:30-midnight",
-              "distance": "about 1,100 km",
-              "description": "Start around 06:30 from Skagen, continue south through Denmark and Germany, and arrive in Ghent around midnight."
+              "title": "Skagen to Hamburg by rail",
+              "duration": "06:30-late afternoon",
+              "distance": "about 600 km",
+              "description": "Leave Skagen early, ride the chain of Danish rail connections south, and change trains in Hamburg for the final leg west."
+            },
+            {
+              "from": "hamburg-return",
+              "to": "ghent-return",
+              "mode": "train",
+              "title": "Hamburg to Ghent by rail",
+              "duration": "late afternoon-midnight",
+              "distance": "about 510 km",
+              "description": "Continue from Hamburg through Cologne and Brussels, reaching Ghent around midnight if the connections hold."
             }
           ]
         }

@@ -22,6 +22,7 @@
   "homepage": "https://github.com/ThomasStock/travel-planner#readme",
   "description": "Lit web components for visualizing a travel itinerary.",
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "leaflet": "^1.9.4",
     "lit": "^3.3.2",
     "vite": "^8.0.10"

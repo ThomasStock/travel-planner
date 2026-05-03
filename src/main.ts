@@ -1,3 +1,4 @@
+import { mdiArrowRight, mdiBike, mdiFerry, mdiTrain } from "@mdi/js";
 import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from "leaflet";
 import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
 import leafletStyles from "leaflet/dist/leaflet.css?inline";
@@ -13,6 +14,7 @@ interface ItineraryStop {
   id: string;
   title: string;
   countryCode?: string;
+  kind?: "transfer";
   date?: string;
   dateRange?: string;
   timestamp?: string;
@@ -42,6 +44,8 @@ interface ItineraryData {
 
 type MappedStop = ItineraryStop & { location: StopLocation };
 
+type SegmentEventDetail = { key?: string };
+
 const emptyItinerary = (): ItineraryData => ({ stops: [], segments: [] });
 
 const countryNames: Record<string, string> = {
@@ -54,6 +58,8 @@ const hasText = (value: unknown): value is string => typeof value === "string" &
 const hasLocation = (stop: ItineraryStop): stop is MappedStop => Number.isFinite(stop.location?.lat) && Number.isFinite(stop.location?.lng);
 const stopDate = (stop: ItineraryStop) => [stop.dateRange || stop.date, stop.timestamp].filter(hasText).join(" · ");
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
+const segmentKey = (segment?: ItinerarySegment) =>
+  [segment?.from, segment?.to, segment?.mapFrom, segment?.mapTo, segment?.mode, segment?.title].join("|");
 const countryIcon = (countryCode?: string) => {
   if (!hasText(countryCode) || countryCode.length !== 2) {
     return "";
@@ -67,49 +73,23 @@ const countryIcon = (countryCode?: string) => {
   );
 };
 
+const libraryIcon = (path: string) => svg`
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d=${path}></path>
+  </svg>
+`;
+
 const modeIcon = (mode?: TravelMode) => {
   switch (mode) {
     case "bike":
-      return svg`
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="6" cy="17.5" r="3"></circle>
-          <circle cx="18" cy="17.5" r="3"></circle>
-          <path d="M8.9 17.5 11.4 12.3l2.9 5.2"></path>
-          <path d="M11.4 12.3h3.9l2 5.2"></path>
-          <path d="M10.2 10.2h2.3"></path>
-          <path d="M10.6 10.2 11.4 12.3"></path>
-          <path d="M15.8 9.8h1.8"></path>
-          <path d="M15.6 12.3 16.4 9.8"></path>
-        </svg>
-      `;
+      return libraryIcon(mdiBike);
     case "ferry":
     case "boat":
-      return svg`
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5.2 15.8 7 8h10l1.8 7.8"></path>
-          <path d="M8.2 8V5.5h7.6V8"></path>
-          <path d="M3.8 15.8h16.4l-2 3.3a3.5 3.5 0 0 1-5 .9 3.5 3.5 0 0 1-4.4 0 3.5 3.5 0 0 1-5-.9l-2-3.3Z"></path>
-        </svg>
-      `;
+      return libraryIcon(mdiFerry);
     case "train":
-      return svg`
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="6" y="3.5" width="12" height="13.5" rx="2.4"></rect>
-          <path d="M8.5 7.5h7"></path>
-          <path d="M8.5 11.2h7"></path>
-          <circle cx="9" cy="14.5" r="1"></circle>
-          <circle cx="15" cy="14.5" r="1"></circle>
-          <path d="m8 20 2.2-3"></path>
-          <path d="m16 20-2.2-3"></path>
-        </svg>
-      `;
+      return libraryIcon(mdiTrain);
     default:
-      return svg`
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 3.5v17"></path>
-          <path d="m5.5 14.5 6.5 6 6.5-6"></path>
-        </svg>
-      `;
+      return libraryIcon(mdiArrowRight);
   }
 };
 
@@ -117,10 +97,14 @@ class TravelItinerary extends LitElement {
   static properties = {
     data: { attribute: false },
     selectedStopId: { attribute: false },
+    selectedSegmentKey: { attribute: false },
+    hoveredSegmentKey: { attribute: false },
   };
 
   data: ItineraryData = emptyItinerary();
   selectedStopId = "";
+  selectedSegmentKey = "";
+  hoveredSegmentKey = "";
 
   static styles = css`
     :host {
@@ -272,8 +256,17 @@ class TravelItinerary extends LitElement {
     this.selectedStopId = event.detail?.id || this.selectedStopId;
   }
 
+  #selectSegment(event: CustomEvent<SegmentEventDetail>) {
+    this.selectedSegmentKey = event.detail?.key || this.selectedSegmentKey;
+  }
+
+  #hoverSegment(event: CustomEvent<SegmentEventDetail>) {
+    this.hoveredSegmentKey = event.detail?.key || "";
+  }
+
   render() {
     const { title, summary, dates, stops = [], segments = [] } = this.data || {};
+    const activeSegmentKey = this.hoveredSegmentKey || this.selectedSegmentKey;
 
     return html`
       <div class="shell">
@@ -281,9 +274,25 @@ class TravelItinerary extends LitElement {
           ${hasText(dates) ? html`<p class="meta">${dates}</p>` : nothing} ${hasText(title) ? html`<h1>${title}</h1>` : nothing}
           ${hasText(summary) ? html`<p class="summary">${summary}</p>` : nothing}
         </header>
-        <div class="layout" @stop-select=${this.#selectStop} @stop-hover=${this.#selectStop}>
-          <trip-timeline .stops=${stops} .segments=${segments} .selectedStopId=${this.selectedStopId}></trip-timeline>
-          <trip-map .stops=${stops} .segments=${segments} .selectedStopId=${this.selectedStopId}></trip-map>
+        <div
+          class="layout"
+          @stop-select=${this.#selectStop}
+          @stop-hover=${this.#selectStop}
+          @segment-select=${this.#selectSegment}
+          @segment-hover=${this.#hoverSegment}
+        >
+          <trip-timeline
+            .stops=${stops}
+            .segments=${segments}
+            .selectedStopId=${this.selectedStopId}
+            .activeSegmentKey=${activeSegmentKey}
+          ></trip-timeline>
+          <trip-map
+            .stops=${stops}
+            .segments=${segments}
+            .selectedStopId=${this.selectedStopId}
+            .activeSegmentKey=${activeSegmentKey}
+          ></trip-map>
         </div>
       </div>
     `;
@@ -295,11 +304,13 @@ class TripTimeline extends LitElement {
     stops: { attribute: false },
     segments: { attribute: false },
     selectedStopId: { attribute: false },
+    activeSegmentKey: { attribute: false },
   };
 
   stops: ItineraryStop[] = [];
   segments: ItinerarySegment[] = [];
   selectedStopId = "";
+  activeSegmentKey = "";
   #observer?: IntersectionObserver;
   #visibleRatios = new Map<string, number>();
 
@@ -311,7 +322,7 @@ class TripTimeline extends LitElement {
     .timeline {
       position: relative;
       display: grid;
-      gap: 10px;
+      gap: 4px;
     }
   `;
 
@@ -406,7 +417,12 @@ class TripTimeline extends LitElement {
         ${this.stops.map(
           (stop, index) => html`
             <trip-stop data-stop-id=${stop.id} .stop=${stop} .index=${index + 1} .selected=${this.selectedStopId === stop.id}></trip-stop>
-            ${index < this.stops.length - 1 ? html`<trip-segment .segment=${this.#segmentAfter(stop, index)}></trip-segment>` : nothing}
+            ${index < this.stops.length - 1
+              ? html`<trip-segment
+                  .segment=${this.#segmentAfter(stop, index)}
+                  .active=${segmentKey(this.#segmentAfter(stop, index)) === this.activeSegmentKey}
+                ></trip-segment>`
+              : nothing}
           `,
         )}
       </section>
@@ -454,9 +470,37 @@ class TripStop extends LitElement {
     button:focus-visible,
     :host([selected]) button {
       border-color: #d45c3d;
-      box-shadow: 0 18px 42px rgba(23, 27, 34, 0.13);
+      box-shadow: 0 24px 54px rgba(23, 27, 34, 0.18);
       outline: none;
-      transform: translateY(-1px);
+      transform: translateY(-2px) scale(1.01);
+      background: rgba(255, 255, 255, 0.94);
+    }
+
+    :host([selected]) .index,
+    button:hover .index,
+    button:focus-visible .index {
+      transform: scale(1.1);
+      box-shadow: 0 8px 20px rgba(0, 108, 103, 0.24);
+    }
+
+    button.transfer {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+      padding: 0 16px;
+      background: transparent;
+      border-color: transparent;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    button.transfer:hover,
+    button.transfer:focus-visible,
+    :host([selected]) button.transfer {
+      border-color: transparent;
+      box-shadow: none;
+      outline: none;
+      transform: none;
+      background: transparent;
     }
 
     .index {
@@ -470,6 +514,10 @@ class TripStop extends LitElement {
       font-weight: 850;
       font-size: 14px;
       line-height: 1;
+      transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        background-color 160ms ease;
     }
 
     .content {
@@ -477,6 +525,12 @@ class TripStop extends LitElement {
       display: grid;
       gap: 7px;
       padding-top: 2px;
+    }
+
+    button.transfer .content {
+      gap: 0;
+      padding-top: 0;
+      opacity: 0.92;
     }
 
     .heading {
@@ -493,6 +547,12 @@ class TripStop extends LitElement {
       letter-spacing: 0;
     }
 
+    button.transfer h2 {
+      font-size: clamp(16px, 2.6vw, 18px);
+      line-height: 1.1;
+      font-weight: 700;
+    }
+
     .country {
       display: inline-block;
       flex: 0 0 auto;
@@ -507,6 +567,13 @@ class TripStop extends LitElement {
       line-height: 1.35;
     }
 
+    button.transfer .date {
+      color: #52605f;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
     p {
       margin: 0;
       color: #52605f;
@@ -515,11 +582,22 @@ class TripStop extends LitElement {
       overflow-wrap: anywhere;
     }
 
+    button.transfer p {
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
     @media (max-width: 520px) {
       button {
         grid-template-columns: 34px minmax(0, 1fr);
         gap: 12px;
         padding: 14px;
+      }
+
+      button.transfer {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        padding: 0 14px;
       }
 
       .index {
@@ -554,17 +632,21 @@ class TripStop extends LitElement {
     const date = stopDate(this.stop);
     const flag = countryIcon(this.stop.countryCode);
     const countryName = hasText(this.stop.countryCode) ? countryNames[this.stop.countryCode.toUpperCase()] : undefined;
+    const transfer = this.stop.kind === "transfer";
+    const showFlag = !transfer && hasText(flag);
+    const showDate = !transfer && hasText(date);
+    const showDescription = !transfer && hasText(this.stop.description);
 
     return html`
-      <button type="button" @click=${this.#select} @pointerenter=${this.#hover}>
-        <span class="index">${this.index}</span>
+      <button class=${transfer ? "transfer" : nothing} type="button" @click=${this.#select} @pointerenter=${this.#hover}>
+        ${transfer ? nothing : html`<span class="index">${this.index}</span>`}
         <span class="content">
           <span class="heading">
             <h2>${this.stop.title}</h2>
-            ${hasText(flag) ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
+            ${showFlag ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
           </span>
-          ${hasText(date) ? html`<span class="date">${date}</span>` : nothing}
-          ${hasText(this.stop.description) ? html`<p>${this.stop.description}</p>` : nothing}
+          ${showDate ? html`<span class="date">${date}</span>` : nothing}
+          ${showDescription ? html`<p>${this.stop.description}</p>` : nothing}
         </span>
       </button>
     `;
@@ -574,9 +656,11 @@ class TripStop extends LitElement {
 class TripSegment extends LitElement {
   static properties = {
     segment: { attribute: false },
+    active: { type: Boolean, reflect: true },
   };
 
   segment?: ItinerarySegment;
+  active = false;
 
   static styles = css`
     :host {
@@ -585,12 +669,30 @@ class TripSegment extends LitElement {
     }
 
     .segment {
+      width: 100%;
+      border: 0;
       display: grid;
       grid-template-columns: 40px minmax(0, 1fr);
       gap: 16px;
-      padding: 10px 0;
+      padding: 6px 0;
       color: #52605f;
       align-items: stretch;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        background-color 160ms ease;
+    }
+
+    .segment:hover,
+    .segment:focus-visible,
+    :host([active]) .segment {
+      background: transparent;
+      box-shadow: none;
+      outline: none;
+      transform: none;
     }
 
     .rail {
@@ -608,6 +710,16 @@ class TripSegment extends LitElement {
       transform: translateX(-50%);
       width: 0;
       border-left: 2px dashed rgba(0, 108, 103, 0.42);
+      transition: border-color 160ms ease;
+    }
+
+    .segment:hover .rail::before,
+    .segment:hover .rail::after,
+    .segment:focus-visible .rail::before,
+    .segment:focus-visible .rail::after,
+    :host([active]) .rail::before,
+    :host([active]) .rail::after {
+      border-left-color: rgba(212, 92, 61, 0.52);
     }
 
     .rail::before {
@@ -630,16 +742,25 @@ class TripSegment extends LitElement {
       color: #fff;
       box-shadow: 0 4px 12px rgba(212, 92, 61, 0.3);
       flex-shrink: 0;
+      transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        background-color 160ms ease;
+    }
+
+    .segment:hover .mode,
+    .segment:focus-visible .mode,
+    :host([active]) .mode {
+      transform: scale(1.12);
+      background: #b64528;
+      box-shadow: 0 10px 24px rgba(212, 92, 61, 0.42);
     }
 
     .mode svg {
       width: 20px;
       height: 20px;
-      fill: none;
-      stroke: currentColor;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      stroke-width: 1.8;
+      display: block;
+      fill: currentColor;
     }
 
     .content {
@@ -654,6 +775,12 @@ class TripSegment extends LitElement {
       font-size: 14px;
       font-weight: 760;
       line-height: 1.35;
+    }
+
+    .segment:hover .title,
+    .segment:focus-visible .title,
+    :host([active]) .title {
+      color: #171b22;
     }
 
     .facts {
@@ -700,6 +827,28 @@ class TripSegment extends LitElement {
     }
   `;
 
+  #emit(type: "segment-hover" | "segment-select", key?: string) {
+    this.dispatchEvent(
+      new CustomEvent<SegmentEventDetail>(type, {
+        bubbles: true,
+        composed: true,
+        detail: { key },
+      }),
+    );
+  }
+
+  #select() {
+    this.#emit("segment-select", segmentKey(this.segment));
+  }
+
+  #hover() {
+    this.#emit("segment-hover", segmentKey(this.segment));
+  }
+
+  #leave() {
+    this.#emit("segment-hover");
+  }
+
   render() {
     const segment = this.segment || {};
     const facts = [segment.duration, segment.distance].filter(hasText);
@@ -710,7 +859,7 @@ class TripSegment extends LitElement {
     }
 
     return html`
-      <div class="segment">
+      <button class="segment" type="button" @click=${this.#select} @pointerenter=${this.#hover} @pointerleave=${this.#leave}>
         <span class="rail">
           <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
         </span>
@@ -719,7 +868,7 @@ class TripSegment extends LitElement {
           ${facts.length ? html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>` : nothing}
           ${hasText(segment.description) ? html`<p>${segment.description}</p>` : nothing}
         </span>
-      </div>
+      </button>
     `;
   }
 }
@@ -729,11 +878,13 @@ class TripMap extends LitElement {
     stops: { attribute: false },
     segments: { attribute: false },
     selectedStopId: { attribute: false },
+    activeSegmentKey: { attribute: false },
   };
 
   stops: ItineraryStop[] = [];
   segments: ItinerarySegment[] = [];
   selectedStopId = "";
+  activeSegmentKey = "";
   #map?: LeafletMap;
   #layers?: LayerGroup;
   #lastRenderedKey = "";
@@ -753,7 +904,7 @@ class TripMap extends LitElement {
       .map {
         max-width: 100%;
         width: 100%;
-        height: clamp(420px, 52vw, 680px);
+        height: max(420px, calc(100dvh - 36px));
         min-height: 420px;
         border: 1px solid rgba(23, 27, 34, 0.12);
         border-radius: 8px;
@@ -794,12 +945,20 @@ class TripMap extends LitElement {
         font-size: 13px;
         font-weight: 850;
         line-height: 1;
+        transition:
+          transform 160ms ease,
+          box-shadow 160ms ease,
+          background-color 160ms ease,
+          border-color 160ms ease;
       }
 
       .map-stop-marker.selected {
+        border-width: 3px;
         border-color: #171b22;
         background: #d45c3d;
-        transform: scale(1.14);
+        color: #fff;
+        transform: scale(1.28);
+        box-shadow: 0 14px 32px rgba(212, 92, 61, 0.34);
       }
 
       @media (max-width: 860px) {
@@ -857,15 +1016,17 @@ class TripMap extends LitElement {
     return this.stops.find((stop): stop is MappedStop => stop.id === id && hasLocation(stop));
   }
 
-  #segmentStyle(segment: ItinerarySegment) {
+  #segmentStyle(segment: ItinerarySegment, active = false) {
     const isTrain = segment.mode === "train";
     const isFerry = segment.mode === "ferry";
 
     return {
-      color: isTrain ? "#4a5fbc" : isFerry ? "#007a8a" : "#d45c3d",
-      weight: isTrain ? 3 : 4,
-      opacity: 0.88,
+      color: active ? (isTrain ? "#2f49d1" : isFerry ? "#006f96" : "#b64528") : isTrain ? "#4a5fbc" : isFerry ? "#007a8a" : "#d45c3d",
+      weight: active ? (isTrain ? 7 : 8) : isTrain ? 3 : 4,
+      opacity: active ? 1 : 0.88,
       dashArray: isTrain ? "8 8" : isFerry ? "2 8" : undefined,
+      lineCap: "round" as const,
+      lineJoin: "round" as const,
     };
   }
 
@@ -899,9 +1060,30 @@ class TripMap extends LitElement {
         continue;
       }
 
-      L.polyline([stopLatLng(from), stopLatLng(to)], this.#segmentStyle(segment))
+      const key = segmentKey(segment);
+      const active = key === this.activeSegmentKey;
+
+      if (active) {
+        L.polyline([stopLatLng(from), stopLatLng(to)], {
+          color: "rgba(255,255,255,0.92)",
+          weight: 12,
+          opacity: 0.95,
+          lineCap: "round",
+          lineJoin: "round",
+          interactive: false,
+        }).addTo(layers);
+      }
+
+      const line = L.polyline([stopLatLng(from), stopLatLng(to)], this.#segmentStyle(segment, active))
         .bindTooltip(segment.title || "")
+        .on("click", () => this.#selectSegment(key))
+        .on("mouseover", () => this.#hoverSegment(key))
+        .on("mouseout", () => this.#hoverSegment())
         .addTo(layers);
+
+      if (active) {
+        line.openTooltip();
+      }
     }
 
     mappedStops.forEach((stop, index) => {
@@ -950,6 +1132,26 @@ class TripMap extends LitElement {
         bubbles: true,
         composed: true,
         detail: { id },
+      }),
+    );
+  }
+
+  #selectSegment(key?: string) {
+    this.dispatchEvent(
+      new CustomEvent<SegmentEventDetail>("segment-select", {
+        bubbles: true,
+        composed: true,
+        detail: { key },
+      }),
+    );
+  }
+
+  #hoverSegment(key?: string) {
+    this.dispatchEvent(
+      new CustomEvent<SegmentEventDetail>("segment-hover", {
+        bubbles: true,
+        composed: true,
+        detail: { key },
       }),
     );
   }
