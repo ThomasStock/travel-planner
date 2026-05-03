@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="A mobile-friendly itinerary viewer built with Lit web components.">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A mobile-friendly itinerary viewer built with Lit web components." />
     <title>Bikepacking in Denmark</title>
     <script type="module" src="/src/main.ts"></script>
     <style>
@@ -18,8 +18,8 @@
       <script type="application/json">
         {
           "title": "Bikepacking in Denmark",
-          "summary": "Train to Hamburg, ride north to the Danish border, follow the West Coast Route to Skagen, then return by rail.",
-          "dates": "June 22-July 3, 2026",
+          "summary": "Train to Hamburg, ride north to the Danish border, follow the West Coast Route to Skagen at a steadier pace, then return by rail.",
+          "dates": "June 22-July 5, 2026",
           "stops": [
             {
               "id": "ghent",
@@ -90,11 +90,22 @@
               }
             },
             {
+              "id": "henne",
+              "title": "Henne Strand",
+              "countryCode": "DK",
+              "date": "June 27",
+              "description": "Follow the published south-to-north stage sequence farther up the coast and overnight by the dunes at Henne instead of stopping after the short Ribe-Esbjerg transfer.",
+              "location": {
+                "lat": 55.7368,
+                "lng": 8.1744
+              }
+            },
+            {
               "id": "hvide-sande",
               "title": "Hvide Sande",
               "countryCode": "DK",
-              "date": "June 27",
-              "description": "A long exposed day through Esbjerg, Blåvand, and the dune strip toward Ringkøbing Fjord.",
+              "date": "June 28",
+              "description": "Continue north from Henne along Holmsland Klit toward Ringkøbing Fjord, keeping this section aligned with the published Henne-Hvide Sande stage.",
               "location": {
                 "lat": 56.0045,
                 "lng": 8.1294
@@ -104,7 +115,7 @@
               "id": "thyboroen",
               "title": "Thyborøn",
               "countryCode": "DK",
-              "date": "June 28",
+              "date": "June 29",
               "description": "Follow Route 1 north between sea and fjord. Sleep near the harbor for an easy ferry start.",
               "location": {
                 "lat": 56.6986,
@@ -115,7 +126,7 @@
               "id": "klitmoeller",
               "title": "Klitmøller",
               "countryCode": "DK",
-              "date": "June 29",
+              "date": "June 30",
               "description": "Take the ferry across the Thyborøn Channel, then ride through Thy National Park to Cold Hawaii.",
               "location": {
                 "lat": 57.0406,
@@ -123,11 +134,22 @@
               }
             },
             {
+              "id": "fjerritslev",
+              "title": "Fjerritslev",
+              "countryCode": "DK",
+              "date": "July 1",
+              "description": "Break up the Jammerbugten stretch with an inland overnight after Svinkløv and the north Jutland dune roads.",
+              "location": {
+                "lat": 57.088,
+                "lng": 9.2669
+              }
+            },
+            {
               "id": "loekken",
               "title": "Løkken",
               "countryCode": "DK",
-              "date": "June 30",
-              "description": "A big west coast day past Hanstholm, Bulbjerg, and Jammerbugten. Keep food and water topped up.",
+              "date": "July 2",
+              "description": "A shorter Jammerbugten day past broad beaches and seaside towns, with time left for the coast at Løkken.",
               "location": {
                 "lat": 57.3705,
                 "lng": 9.7147
@@ -137,7 +159,7 @@
               "id": "skagen",
               "title": "Skagen",
               "countryCode": "DK",
-              "dateRange": "July 1-2",
+              "dateRange": "July 3-4",
               "timestamp": "Grenen finish",
               "description": "Final ride through Tversted and Råbjerg Mile to Skagen. Finish at Grenen at the northern tip.",
               "location": {
@@ -149,7 +171,7 @@
               "id": "ghent-return",
               "title": "Ghent",
               "countryCode": "BE",
-              "date": "July 3",
+              "date": "July 5",
               "timestamp": "06:30-midnight",
               "description": "Train back from Skagen via Aalborg, Aarhus, Hamburg, Cologne, and Brussels. Leave around 06:30 and arrive in Ghent around midnight.",
               "location": {
@@ -206,12 +228,21 @@
             },
             {
               "from": "ribe",
+              "to": "henne",
+              "mode": "bike",
+              "title": "Ribe to Henne via the west-coast route",
+              "duration": "4-5h riding",
+              "distance": "74 km",
+              "description": "Use the official Ribe-Esbjerg and Esbjerg-Henne stage progression to turn the former 32 km day into a fuller ride through marsh country, Esbjerg, and the dune plantations."
+            },
+            {
+              "from": "henne",
               "to": "hvide-sande",
               "mode": "bike",
-              "title": "Wadden Sea to the dune coast",
-              "duration": "6-7h riding",
-              "distance": "118 km",
-              "description": "Long stage through Esbjerg, Blåvand, and open coast roads. Start early if the wind is from the north-west."
+              "title": "Henne to Hvide Sande",
+              "duration": "2-3h riding",
+              "distance": "44 km",
+              "description": "A shorter follow-on day along the coast past Nymindegab and the southern reaches of Holmsland Klit before reaching Hvide Sande."
             },
             {
               "from": "hvide-sande",
@@ -233,12 +264,21 @@
             },
             {
               "from": "klitmoeller",
+              "to": "fjerritslev",
+              "mode": "bike",
+              "title": "Cold Hawaii to Svinkløv",
+              "duration": "3-4h riding",
+              "distance": "53 km",
+              "description": "A shorter day along the exposed coast past Hanstholm and Bulbjerg before turning toward Fjerritslev."
+            },
+            {
+              "from": "fjerritslev",
               "to": "loekken",
               "mode": "bike",
-              "title": "Jammerbugten coast",
-              "duration": "6-7h riding",
-              "distance": "112 km",
-              "description": "Demanding coastal stage with cliffs, beaches, and long open sections."
+              "title": "South through Jammerbugten",
+              "duration": "3-4h riding",
+              "distance": "59 km",
+              "description": "Roll through beach towns and dune roads along Jammerbugten, keeping the north Jutland coast section comfortably short."
             },
             {
               "from": "loekken",
