@@ -698,7 +698,7 @@ class TripSegment extends LitElement {
       width: 100%;
       border: 0;
       display: grid;
-      grid-template-columns: 40px minmax(0, 1fr);
+      grid-template-columns: 76px minmax(0, 1fr);
       gap: 16px;
       padding: 6px 0;
       color: #52605f;
@@ -724,6 +724,9 @@ class TripSegment extends LitElement {
     .rail {
       position: relative;
       display: grid;
+      gap: 7px;
+      align-content: center;
+      justify-items: center;
       place-items: center;
       min-height: 100%;
     }
@@ -750,11 +753,11 @@ class TripSegment extends LitElement {
 
     .rail::before {
       top: 0;
-      bottom: calc(50% + 26px);
+      bottom: calc(50% + 42px);
     }
 
     .rail::after {
-      top: calc(50% + 26px);
+      top: calc(50% + 42px);
       bottom: 0;
     }
 
@@ -787,6 +790,18 @@ class TripSegment extends LitElement {
       height: 20px;
       display: block;
       fill: currentColor;
+    }
+
+    .distance {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      color: #171b22;
+      font-size: 13px;
+      font-weight: 850;
+      line-height: 1.15;
+      text-align: center;
+      overflow-wrap: anywhere;
     }
 
     .content {
@@ -829,16 +844,16 @@ class TripSegment extends LitElement {
       }
 
       .segment {
-        grid-template-columns: 34px minmax(0, 1fr);
+        grid-template-columns: 64px minmax(0, 1fr);
         gap: 12px;
       }
 
       .rail::before {
-        bottom: calc(50% + 22px);
+        bottom: calc(50% + 38px);
       }
 
       .rail::after {
-        top: calc(50% + 22px);
+        top: calc(50% + 38px);
       }
 
       .mode {
@@ -877,10 +892,11 @@ class TripSegment extends LitElement {
 
   render() {
     const segment = this.segment || {};
-    const facts = [segment.duration, segment.distance].filter(hasText);
+    const facts = [segment.duration].filter(hasText);
     const icon = modeIcon(segment.mode);
+    const distance = hasText(segment.distance) ? segment.distance : "";
 
-    if (!hasText(segment.title) && !hasText(segment.description) && facts.length === 0) {
+    if (!hasText(segment.title) && !hasText(segment.description) && facts.length === 0 && !hasText(distance)) {
       return nothing;
     }
 
@@ -888,6 +904,7 @@ class TripSegment extends LitElement {
       <button class="segment" type="button" @click=${this.#select} @pointerenter=${this.#hover} @pointerleave=${this.#leave}>
         <span class="rail">
           <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
+          ${hasText(distance) ? html`<span class="distance">${distance}</span>` : nothing}
         </span>
         <span class="content">
           ${hasText(segment.title) ? html`<span class="title">${segment.title}</span>` : nothing}
