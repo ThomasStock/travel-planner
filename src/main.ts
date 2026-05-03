@@ -72,11 +72,14 @@ const modeIcon = (mode?: TravelMode) => {
     case "bike":
       return svg`
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="6" cy="17" r="3.2"></circle>
-          <circle cx="18" cy="17" r="3.2"></circle>
-          <path d="M8.8 17h3.1l2.8-6.5h-3.1l-2.8 6.5Z"></path>
-          <path d="M12 17 7.7 10.5h3.9"></path>
-          <path d="M15.1 8.2h2.8"></path>
+          <circle cx="6.5" cy="17.5" r="3.1"></circle>
+          <circle cx="17.5" cy="17.5" r="3.1"></circle>
+          <path d="M6.5 17.5 10.4 11h3.4"></path>
+          <path d="M10.4 11 13.6 17.5"></path>
+          <path d="M13.6 17.5 17.5 17.5"></path>
+          <path d="M11.6 8.7h2.8"></path>
+          <path d="M14.4 8.7 16.6 8.7"></path>
+          <path d="M9 12h-1.8"></path>
         </svg>
       `;
     case "ferry":
@@ -331,8 +334,9 @@ class TripStop extends LitElement {
       border: 1px solid color-mix(in srgb, #006c67 24%, transparent);
       border-radius: 8px;
       display: grid;
-      grid-template-columns: 44px minmax(0, 1fr);
-      gap: 14px;
+      grid-template-columns: 40px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
       padding: 16px;
       background: rgba(255, 255, 255, 0.76);
       color: inherit;
@@ -355,8 +359,8 @@ class TripStop extends LitElement {
     }
 
     .index {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       display: grid;
       place-items: center;
@@ -371,6 +375,7 @@ class TripStop extends LitElement {
       min-width: 0;
       display: grid;
       gap: 7px;
+      padding-top: 2px;
     }
 
     .heading {
@@ -417,8 +422,8 @@ class TripStop extends LitElement {
       }
 
       .index {
-        width: 30px;
-        height: 30px;
+        width: 34px;
+        height: 34px;
         font-size: 12px;
       }
     }
@@ -454,8 +459,8 @@ class TripStop extends LitElement {
         <span class="index">${this.index}</span>
         <span class="content">
           <span class="heading">
-            ${hasText(flag) ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
             <h2>${this.stop.title}</h2>
+            ${hasText(flag) ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
           </span>
           ${hasText(date) ? html`<span class="date">${date}</span>` : nothing}
           ${hasText(this.stop.description) ? html`<p>${this.stop.description}</p>` : nothing}
@@ -475,21 +480,48 @@ class TripSegment extends LitElement {
   static styles = css`
     :host {
       display: block;
-      padding: 0 0 0 38px;
+      padding: 0 16px;
     }
 
     .segment {
       display: grid;
-      grid-template-columns: 38px minmax(0, 1fr);
-      gap: 14px;
+      grid-template-columns: 40px minmax(0, 1fr);
+      gap: 16px;
       padding: 10px 0;
       color: #52605f;
-      align-items: start;
+      align-items: stretch;
+    }
+
+    .rail {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 100%;
+    }
+
+    .rail::before,
+    .rail::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      border-left: 2px dashed rgba(0, 108, 103, 0.42);
+    }
+
+    .rail::before {
+      top: 0;
+      bottom: calc(50% + 26px);
+    }
+
+    .rail::after {
+      top: calc(50% + 26px);
+      bottom: 0;
     }
 
     .mode {
-      width: 38px;
-      height: 38px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       display: grid;
       place-items: center;
@@ -539,17 +571,25 @@ class TripSegment extends LitElement {
 
     @media (max-width: 520px) {
       :host {
-        padding-left: 34px;
+        padding: 0 14px;
       }
 
       .segment {
-        grid-template-columns: 32px minmax(0, 1fr);
+        grid-template-columns: 34px minmax(0, 1fr);
         gap: 12px;
       }
 
+      .rail::before {
+        bottom: calc(50% + 22px);
+      }
+
+      .rail::after {
+        top: calc(50% + 22px);
+      }
+
       .mode {
-        width: 32px;
-        height: 32px;
+        width: 34px;
+        height: 34px;
       }
 
       .mode svg {
@@ -570,7 +610,9 @@ class TripSegment extends LitElement {
 
     return html`
       <div class="segment">
-        <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
+        <span class="rail">
+          <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
+        </span>
         <span class="content">
           ${hasText(segment.title) ? html`<span class="title">${segment.title}</span>` : nothing}
           ${facts.length ? html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>` : nothing}
