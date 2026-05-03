@@ -72,14 +72,14 @@ const modeIcon = (mode?: TravelMode) => {
     case "bike":
       return svg`
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="6.5" cy="17.5" r="3.1"></circle>
-          <circle cx="17.5" cy="17.5" r="3.1"></circle>
-          <path d="M6.5 17.5 10.4 11h3.4"></path>
-          <path d="M10.4 11 13.6 17.5"></path>
-          <path d="M13.6 17.5 17.5 17.5"></path>
-          <path d="M11.6 8.7h2.8"></path>
-          <path d="M14.4 8.7 16.6 8.7"></path>
-          <path d="M9 12h-1.8"></path>
+          <circle cx="6" cy="17.5" r="3"></circle>
+          <circle cx="18" cy="17.5" r="3"></circle>
+          <path d="M8.9 17.5 11.4 12.3l2.9 5.2"></path>
+          <path d="M11.4 12.3h3.9l2 5.2"></path>
+          <path d="M10.2 10.2h2.3"></path>
+          <path d="M10.6 10.2 11.4 12.3"></path>
+          <path d="M15.8 9.8h1.8"></path>
+          <path d="M15.6 12.3 16.4 9.8"></path>
         </svg>
       `;
     case "ferry":
@@ -147,7 +147,7 @@ class TravelItinerary extends LitElement {
       width: min(1180px, 100%);
       margin: 0 auto;
       padding: 28px clamp(16px, 4vw, 40px) 40px;
-      overflow: hidden;
+      overflow: visible;
     }
 
     header {
@@ -195,6 +195,7 @@ class TravelItinerary extends LitElement {
     trip-map {
       position: sticky;
       top: 18px;
+      z-index: 8;
     }
 
     @media (max-width: 860px) {
@@ -216,6 +217,7 @@ class TravelItinerary extends LitElement {
         position: static;
         order: -1;
         width: 100%;
+        z-index: auto;
       }
     }
   `;
@@ -281,6 +283,8 @@ class TripTimeline extends LitElement {
   stops: ItineraryStop[] = [];
   segments: ItinerarySegment[] = [];
   selectedStopId = "";
+  #observer?: IntersectionObserver;
+  #visibleRatios = new Map<string, number>();
 
   static styles = css`
     :host {
@@ -299,12 +303,92 @@ class TripTimeline extends LitElement {
     return this.segments.find((segment) => segment.from === stop.id && segment.to === nextStop?.id) || this.segments[index];
   }
 
+  firstUpdated() {
+    this.#observeStops();
+  }
+
+  updated(changedProperties: Map<string, unknown>) {
+    if (changedProperties.has("stops")) {
+      this.#observeStops();
+    }
+  }
+
+  disconnectedCallback() {
+    this.#observer?.disconnect();
+    this.#observer = undefined;
+    super.disconnectedCallback();
+  }
+
+  #observeStops() {
+    this.#observer?.disconnect();
+    this.#visibleRatios.clear();
+
+    const stopElements = Array.from(this.renderRoot.querySelectorAll<TripStop>("trip-stop"));
+    if (!stopElements.length || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+
+    this.#observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const stopId = entry.target.getAttribute("data-stop-id");
+          if (!stopId) {
+            continue;
+          }
+
+          if (entry.isIntersecting) {
+            this.#visibleRatios.set(stopId, entry.intersectionRatio);
+          } else {
+            this.#visibleRatios.delete(stopId);
+          }
+        }
+
+        const nextStopId = this.#mostVisibleStopId();
+        if (!nextStopId || nextStopId === this.selectedStopId) {
+          return;
+        }
+
+        this.dispatchEvent(
+          new CustomEvent("stop-hover", {
+            bubbles: true,
+            composed: true,
+            detail: { id: nextStopId },
+          }),
+        );
+      },
+      {
+        root: null,
+        threshold: [0.2, 0.35, 0.5, 0.65, 0.8],
+        rootMargin: "-14% 0px -48% 0px",
+      },
+    );
+
+    for (const element of stopElements) {
+      this.#observer.observe(element);
+    }
+  }
+
+  #mostVisibleStopId() {
+    let bestId = "";
+    let bestRatio = -1;
+
+    for (const stop of this.stops) {
+      const ratio = this.#visibleRatios.get(stop.id) ?? -1;
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        bestId = stop.id;
+      }
+    }
+
+    return bestRatio > 0 ? bestId : "";
+  }
+
   render() {
     return html`
       <section class="timeline" aria-label="Itinerary timeline">
         ${this.stops.map(
           (stop, index) => html`
-            <trip-stop .stop=${stop} .index=${index + 1} .selected=${this.selectedStopId === stop.id}></trip-stop>
+            <trip-stop data-stop-id=${stop.id} .stop=${stop} .index=${index + 1} .selected=${this.selectedStopId === stop.id}></trip-stop>
             ${index < this.stops.length - 1 ? html`<trip-segment .segment=${this.#segmentAfter(stop, index)}></trip-segment>` : nothing}
           `,
         )}
@@ -635,12 +719,18 @@ class TripMap extends LitElement {
   selectedStopId = "";
   #map?: LeafletMap;
   #layers?: LayerGroup;
+  #lastRenderedKey = "";
 
   static styles = [
     unsafeCSS(leafletStyles),
     css`
       :host {
         display: block;
+      }
+
+      .frame {
+        position: relative;
+        isolation: isolate;
       }
 
       .map {
@@ -695,10 +785,17 @@ class TripMap extends LitElement {
         transform: scale(1.14);
       }
 
-      @media (max-width: 520px) {
+      @media (max-width: 860px) {
         .map {
           height: 360px;
           min-height: 360px;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .map {
+          height: 320px;
+          min-height: 320px;
         }
       }
     `,
@@ -757,11 +854,21 @@ class TripMap extends LitElement {
 
     const map = this.#map;
     const layers = this.#layers;
-    layers.clearLayers();
     const mappedStops = this.stops.filter(hasLocation);
     if (!mappedStops.length) {
+      layers.clearLayers();
+      this.#lastRenderedKey = "";
       return;
     }
+
+    const renderKey = JSON.stringify({
+      stops: mappedStops.map((stop) => [stop.id, stop.location.lat, stop.location.lng]),
+      segments: this.segments.map((segment) => [segment.from, segment.to, segment.mapFrom, segment.mapTo, segment.mode, segment.title]),
+    });
+
+    const shouldRefit = this.#lastRenderedKey !== renderKey;
+    layers.clearLayers();
+    this.#lastRenderedKey = renderKey;
 
     for (const segment of this.segments) {
       const from = this.#stopById(segment.mapFrom || segment.from);
@@ -793,10 +900,16 @@ class TripMap extends LitElement {
         .on("click", () => this.#select(stop.id))
         .on("mouseover", () => this.#hover(stop.id))
         .addTo(layers);
+
+      if (selected) {
+        marker.openTooltip();
+      }
     });
 
-    const bounds = L.latLngBounds(mappedStops.map(stopLatLng));
-    map.fitBounds(bounds, { padding: [24, 24] });
+    if (shouldRefit) {
+      const bounds = L.latLngBounds(mappedStops.map(stopLatLng));
+      map.fitBounds(bounds, { padding: [24, 24] });
+    }
   }
 
   #select(id: string) {
@@ -820,7 +933,11 @@ class TripMap extends LitElement {
   }
 
   render() {
-    return html`<section class="map" aria-label="OpenStreetMap itinerary map"></section>`;
+    return html`
+      <section class="frame">
+        <section class="map" aria-label="OpenStreetMap itinerary map"></section>
+      </section>
+    `;
   }
 }
 
