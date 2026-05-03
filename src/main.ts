@@ -619,7 +619,7 @@ class TripMap extends LitElement {
         box-shadow: 0 8px 20px rgba(23, 27, 34, 0.12);
       }
 
-      .map-country-marker {
+      .map-stop-marker {
         width: 26px;
         height: 26px;
         border: 2px solid #006c67;
@@ -628,11 +628,13 @@ class TripMap extends LitElement {
         place-items: center;
         background: #fff;
         box-shadow: 0 8px 18px rgba(23, 27, 34, 0.18);
-        font-size: 16px;
+        color: #171b22;
+        font-size: 13px;
+        font-weight: 850;
         line-height: 1;
       }
 
-      .map-country-marker.selected {
+      .map-stop-marker.selected {
         border-color: #171b22;
         background: #d45c3d;
         transform: scale(1.14);
@@ -720,17 +722,16 @@ class TripMap extends LitElement {
 
     mappedStops.forEach((stop, index) => {
       const selected = stop.id === this.selectedStopId;
-      const flag = countryIcon(stop.countryCode);
       const marker = L.marker(stopLatLng(stop), {
         icon: L.divIcon({
           className: '',
-          html: `<span class="map-country-marker${selected ? ' selected' : ''}">${flag || index + 1}</span>`,
+          html: `<span class="map-stop-marker${selected ? ' selected' : ''}">${index + 1}</span>`,
           iconAnchor: [13, 13],
         }),
       });
 
       marker
-        .bindTooltip(`${index + 1}. ${flag ? `${flag} ` : ''}${stop.title}`, {
+        .bindTooltip(`${index + 1}. ${stop.title}`, {
           direction: 'top',
           offset: [0, -8],
         })
