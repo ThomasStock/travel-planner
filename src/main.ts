@@ -1,4 +1,6 @@
-import { LitElement, css, html, nothing, svg } from 'lit';
+import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from 'leaflet';
+import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
+import leafletStyles from 'leaflet/dist/leaflet.css?inline';
 
 type TravelMode = 'bike' | 'boat' | 'bus' | 'car' | 'ferry' | 'flight' | 'plane' | 'train' | 'walk' | string;
 
@@ -17,7 +19,7 @@ interface ItineraryStop {
   location?: StopLocation;
 }
 
-interface ItineraryLeg {
+interface ItinerarySegment {
   from?: string;
   to?: string;
   mode?: TravelMode;
@@ -32,20 +34,12 @@ interface ItineraryData {
   summary?: string;
   dates?: string;
   stops: ItineraryStop[];
-  legs: ItineraryLeg[];
-}
-
-interface MapPoint {
-  id: string;
-  title: string;
-  index: number;
-  x: number;
-  y: number;
+  segments: ItinerarySegment[];
 }
 
 type MappedStop = ItineraryStop & { location: StopLocation };
 
-const emptyItinerary = (): ItineraryData => ({ stops: [], legs: [] });
+const emptyItinerary = (): ItineraryData => ({ stops: [], segments: [] });
 
 const modeIcons: Record<string, string> = {
   bike: 'B',
@@ -63,6 +57,7 @@ const hasText = (value: unknown): value is string => typeof value === 'string' &
 const hasLocation = (stop: ItineraryStop): stop is MappedStop =>
   Number.isFinite(stop.location?.lat) && Number.isFinite(stop.location?.lng);
 const stopDate = (stop: ItineraryStop) => [stop.dateRange || stop.date, stop.timestamp].filter(hasText).join(' · ');
+const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
 
 class TravelItinerary extends LitElement {
   static properties = {
@@ -92,6 +87,7 @@ class TravelItinerary extends LitElement {
       width: min(1180px, 100%);
       margin: 0 auto;
       padding: 28px clamp(16px, 4vw, 40px) 40px;
+      overflow: hidden;
     }
 
     header {
@@ -110,11 +106,13 @@ class TravelItinerary extends LitElement {
 
     .meta,
     .summary {
+      width: 100%;
       max-width: 720px;
       margin: 0;
       color: #52605f;
       font-size: clamp(15px, 2vw, 18px);
       line-height: 1.6;
+      overflow-wrap: anywhere;
     }
 
     .meta {
@@ -127,6 +125,11 @@ class TravelItinerary extends LitElement {
       grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
       gap: 22px;
       align-items: start;
+      min-width: 0;
+    }
+
+    .layout > * {
+      min-width: 0;
     }
 
     trip-map {
@@ -136,6 +139,8 @@ class TravelItinerary extends LitElement {
 
     @media (max-width: 860px) {
       .shell {
+        width: 100vw;
+        max-width: 100vw;
         padding-top: 18px;
       }
 
@@ -150,6 +155,7 @@ class TravelItinerary extends LitElement {
       trip-map {
         position: static;
         order: -1;
+        width: 100%;
       }
     }
   `;
@@ -169,11 +175,17 @@ class TravelItinerary extends LitElement {
     }
 
     try {
-      const parsed = JSON.parse(source.textContent) as Partial<ItineraryData>;
+      const parsed = JSON.parse(source.textContent) as Partial<ItineraryData> & { legs?: ItinerarySegment[] };
+      const segments = Array.isArray(parsed.segments)
+        ? parsed.segments
+        : Array.isArray(parsed.legs)
+          ? parsed.legs
+          : [];
+
       return {
         ...parsed,
         stops: Array.isArray(parsed.stops) ? parsed.stops : [],
-        legs: Array.isArray(parsed.legs) ? parsed.legs : [],
+        segments,
       };
     } catch (error) {
       console.error('Invalid itinerary JSON', error);
@@ -186,7 +198,7 @@ class TravelItinerary extends LitElement {
   }
 
   render() {
-    const { title, summary, dates, stops = [], legs = [] } = this.data || {};
+    const { title, summary, dates, stops = [], segments = [] } = this.data || {};
 
     return html`
       <div class="shell">
@@ -198,12 +210,12 @@ class TravelItinerary extends LitElement {
         <div class="layout" @stop-select=${this.#selectStop} @stop-hover=${this.#selectStop}>
           <trip-timeline
             .stops=${stops}
-            .legs=${legs}
+            .segments=${segments}
             .selectedStopId=${this.selectedStopId}
           ></trip-timeline>
           <trip-map
             .stops=${stops}
-            .legs=${legs}
+            .segments=${segments}
             .selectedStopId=${this.selectedStopId}
           ></trip-map>
         </div>
@@ -215,12 +227,12 @@ class TravelItinerary extends LitElement {
 class TripTimeline extends LitElement {
   static properties = {
     stops: { attribute: false },
-    legs: { attribute: false },
+    segments: { attribute: false },
     selectedStopId: { attribute: false },
   };
 
   stops: ItineraryStop[] = [];
-  legs: ItineraryLeg[] = [];
+  segments: ItinerarySegment[] = [];
   selectedStopId = '';
 
   static styles = css`
@@ -235,9 +247,9 @@ class TripTimeline extends LitElement {
     }
   `;
 
-  #legAfter(stop: ItineraryStop, index: number): ItineraryLeg | undefined {
+  #segmentAfter(stop: ItineraryStop, index: number): ItinerarySegment | undefined {
     const nextStop = this.stops[index + 1];
-    return this.legs.find((leg) => leg.from === stop.id && leg.to === nextStop?.id) || this.legs[index];
+    return this.segments.find((segment) => segment.from === stop.id && segment.to === nextStop?.id) || this.segments[index];
   }
 
   render() {
@@ -250,7 +262,7 @@ class TripTimeline extends LitElement {
             .selected=${this.selectedStopId === stop.id}
           ></trip-stop>
           ${index < this.stops.length - 1
-            ? html`<trip-leg .leg=${this.#legAfter(stop, index)}></trip-leg>`
+            ? html`<trip-segment .segment=${this.#segmentAfter(stop, index)}></trip-segment>`
             : nothing}
         `)}
       </section>
@@ -337,6 +349,7 @@ class TripStop extends LitElement {
       color: #52605f;
       font-size: 15px;
       line-height: 1.55;
+      overflow-wrap: anywhere;
     }
 
     @media (max-width: 520px) {
@@ -386,12 +399,12 @@ class TripStop extends LitElement {
   }
 }
 
-class TripLeg extends LitElement {
+class TripSegment extends LitElement {
   static properties = {
-    leg: { attribute: false },
+    segment: { attribute: false },
   };
 
-  leg?: ItineraryLeg;
+  segment?: ItinerarySegment;
 
   static styles = css`
     :host {
@@ -399,7 +412,7 @@ class TripLeg extends LitElement {
       padding: 0 0 0 38px;
     }
 
-    .leg {
+    .segment {
       display: grid;
       grid-template-columns: 30px minmax(0, 1fr);
       gap: 12px;
@@ -452,7 +465,7 @@ class TripLeg extends LitElement {
         padding-left: 28px;
       }
 
-      .leg {
+      .segment {
         grid-template-columns: 28px minmax(0, 1fr);
         padding-left: 16px;
       }
@@ -460,21 +473,21 @@ class TripLeg extends LitElement {
   `;
 
   render() {
-    const leg = this.leg || {};
-    const facts = [leg.duration, leg.distance].filter(hasText);
-    const icon = modeIcons[leg.mode] || '>';
+    const segment = this.segment || {};
+    const facts = [segment.duration, segment.distance].filter(hasText);
+    const icon = hasText(segment.mode) ? modeIcons[segment.mode] || '>' : '>';
 
-    if (!hasText(leg.title) && !hasText(leg.description) && facts.length === 0) {
+    if (!hasText(segment.title) && !hasText(segment.description) && facts.length === 0) {
       return nothing;
     }
 
     return html`
-      <div class="leg">
+      <div class="segment">
         <span class="mode" aria-hidden="true">${icon}</span>
         <span class="content">
-          ${hasText(leg.title) ? html`<span class="title">${leg.title}</span>` : nothing}
+          ${hasText(segment.title) ? html`<span class="title">${segment.title}</span>` : nothing}
           ${facts.length ? html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>` : nothing}
-          ${hasText(leg.description) ? html`<p>${leg.description}</p>` : nothing}
+          ${hasText(segment.description) ? html`<p>${segment.description}</p>` : nothing}
         </span>
       </div>
     `;
@@ -484,140 +497,149 @@ class TripLeg extends LitElement {
 class TripMap extends LitElement {
   static properties = {
     stops: { attribute: false },
-    legs: { attribute: false },
+    segments: { attribute: false },
     selectedStopId: { attribute: false },
   };
 
   stops: ItineraryStop[] = [];
-  legs: ItineraryLeg[] = [];
+  segments: ItinerarySegment[] = [];
   selectedStopId = '';
+  #map?: LeafletMap;
+  #layers?: LayerGroup;
 
-  static styles = css`
-    :host {
-      display: block;
-    }
+  static styles = [
+    unsafeCSS(leafletStyles),
+    css`
+      :host {
+        display: block;
+      }
 
-    .map {
-      min-height: 420px;
-      border: 1px solid rgba(23, 27, 34, 0.12);
-      border-radius: 8px;
-      overflow: hidden;
-      background:
-        linear-gradient(135deg, rgba(0, 108, 103, 0.11), rgba(246, 191, 73, 0.16)),
-        #eef5f3;
-      box-shadow: 0 18px 42px rgba(23, 27, 34, 0.12);
-    }
-
-    svg {
-      display: block;
-      width: 100%;
-      min-height: 420px;
-      height: clamp(420px, 58vw, 640px);
-    }
-
-    .water {
-      fill: #d9eeed;
-    }
-
-    .land {
-      fill: rgba(255, 255, 255, 0.74);
-      stroke: rgba(0, 108, 103, 0.25);
-      stroke-width: 2;
-    }
-
-    .route {
-      fill: none;
-      stroke: #d45c3d;
-      stroke-width: 5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      stroke-dasharray: 1 12;
-    }
-
-    .stop {
-      cursor: pointer;
-      outline: none;
-    }
-
-    .pin {
-      fill: #fff;
-      stroke: #006c67;
-      stroke-width: 4;
-      transition: fill 150ms ease, stroke 150ms ease, transform 150ms ease;
-      transform-box: fill-box;
-      transform-origin: center;
-    }
-
-    .stop:hover .pin,
-    .stop:focus-visible .pin,
-    .stop[selected] .pin {
-      fill: #d45c3d;
-      stroke: #171b22;
-      transform: scale(1.15);
-    }
-
-    .num {
-      fill: #171b22;
-      font-size: 22px;
-      font-weight: 850;
-      text-anchor: middle;
-      dominant-baseline: central;
-      pointer-events: none;
-    }
-
-    .label-bg {
-      fill: rgba(255, 255, 255, 0.88);
-      stroke: rgba(23, 27, 34, 0.12);
-    }
-
-    .label {
-      fill: #171b22;
-      font-size: 20px;
-      font-weight: 760;
-      pointer-events: none;
-    }
-
-    @media (max-width: 520px) {
       .map {
-        min-height: 340px;
+        max-width: 100%;
+        width: 100%;
+        height: clamp(420px, 52vw, 680px);
+        min-height: 420px;
+        border: 1px solid rgba(23, 27, 34, 0.12);
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 18px 42px rgba(23, 27, 34, 0.12);
       }
 
-      svg {
-        min-height: 340px;
-        height: 360px;
+      .leaflet-container {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #d9eeed;
       }
 
-      .label {
-        font-size: 24px;
+      .leaflet-tooltip {
+        border: 1px solid rgba(23, 27, 34, 0.12);
+        border-radius: 6px;
+        color: #171b22;
+        font-weight: 800;
+        box-shadow: 0 8px 20px rgba(23, 27, 34, 0.12);
       }
+
+      @media (max-width: 520px) {
+        .map {
+          height: 360px;
+          min-height: 360px;
+        }
+      }
+    `,
+  ];
+
+  firstUpdated() {
+    const container = this.renderRoot.querySelector<HTMLElement>('.map');
+    if (!container) {
+      return;
     }
-  `;
 
-  #points(): MapPoint[] {
-    const stops = this.stops.filter(hasLocation);
-    if (!stops.length) {
-      return [];
+    this.#map = L.map(container, {
+      attributionControl: true,
+      scrollWheelZoom: false,
+      zoomControl: false,
+    });
+    L.control.zoom({ position: 'bottomleft' }).addTo(this.#map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(this.#map);
+    this.#layers = L.layerGroup().addTo(this.#map);
+    this.#syncMap();
+  }
+
+  updated() {
+    this.#syncMap();
+  }
+
+  disconnectedCallback() {
+    this.#map?.remove();
+    this.#map = undefined;
+    super.disconnectedCallback();
+  }
+
+  #stopById(id?: string): MappedStop | undefined {
+    return this.stops.find((stop): stop is MappedStop => stop.id === id && hasLocation(stop));
+  }
+
+  #segmentStyle(segment: ItinerarySegment) {
+    const isTrain = segment.mode === 'train';
+    const isFerry = segment.mode === 'ferry';
+
+    return {
+      color: isTrain ? '#4a5fbc' : isFerry ? '#007a8a' : '#d45c3d',
+      weight: isTrain ? 3 : 4,
+      opacity: 0.88,
+      dashArray: isTrain ? '8 8' : isFerry ? '2 8' : undefined,
+    };
+  }
+
+  #syncMap() {
+    if (!this.#map || !this.#layers) {
+      return;
     }
 
-    const lats = stops.map((stop) => stop.location.lat);
-    const lngs = stops.map((stop) => stop.location.lng);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    const latSpan = maxLat - minLat || 1;
-    const lngSpan = maxLng - minLng || 1;
-    const pad = 110;
-    const width = 1000 - pad * 2;
-    const height = 640 - pad * 2;
+    const map = this.#map;
+    const layers = this.#layers;
+    layers.clearLayers();
+    const mappedStops = this.stops.filter(hasLocation);
+    if (!mappedStops.length) {
+      return;
+    }
 
-    return stops.map((stop, index) => ({
-      id: stop.id,
-      title: stop.title,
-      index: index + 1,
-      x: pad + ((stop.location.lng - minLng) / lngSpan) * width,
-      y: pad + (1 - ((stop.location.lat - minLat) / latSpan)) * height,
-    }));
+    for (const segment of this.segments) {
+      const from = this.#stopById(segment.from);
+      const to = this.#stopById(segment.to);
+      if (!from || !to) {
+        continue;
+      }
+
+      L.polyline([stopLatLng(from), stopLatLng(to)], this.#segmentStyle(segment))
+        .bindTooltip(segment.title || '')
+        .addTo(layers);
+    }
+
+    mappedStops.forEach((stop, index) => {
+      const selected = stop.id === this.selectedStopId;
+      const marker = L.circleMarker(stopLatLng(stop), {
+        radius: selected ? 10 : 7,
+        color: selected ? '#171b22' : '#006c67',
+        fillColor: selected ? '#d45c3d' : '#ffffff',
+        fillOpacity: 1,
+        weight: selected ? 3 : 2,
+      });
+
+      marker
+        .bindTooltip(`${index + 1}. ${stop.title}`, {
+          direction: 'top',
+          offset: [0, -8],
+        })
+        .on('click', () => this.#select(stop.id))
+        .on('mouseover', () => this.#hover(stop.id))
+        .addTo(layers);
+    });
+
+    const bounds = L.latLngBounds(mappedStops.map(stopLatLng));
+    map.fitBounds(bounds, { padding: [24, 24] });
   }
 
   #select(id: string) {
@@ -637,53 +659,12 @@ class TripMap extends LitElement {
   }
 
   render() {
-    const points = this.#points();
-    const route = points.map((point) => `${point.x},${point.y}`).join(' ');
-
-    return html`
-      <section class="map" aria-label="Itinerary map">
-        <svg viewBox="0 0 1000 640" role="img" aria-label="Map with clickable itinerary stops">
-          <rect class="water" width="1000" height="640" rx="0"></rect>
-          <path class="land" d="M97 515 C142 430 116 345 186 269 C241 209 244 131 329 89 C421 43 515 96 575 52 C640 6 740 38 785 103 C833 172 799 239 868 300 C943 366 927 475 847 528 C774 576 711 548 623 582 C539 614 438 596 363 552 C279 503 169 588 97 515 Z"></path>
-          <path class="land" d="M628 244 C677 198 747 203 782 259 C824 326 784 403 715 414 C654 423 599 369 604 309 C606 282 614 259 628 244 Z"></path>
-          ${route ? svg`<polyline class="route" points=${route}></polyline>` : nothing}
-          ${points.map((point) => {
-            const selected = this.selectedStopId === point.id;
-            const labelWidth = Math.max(112, point.title.length * 10 + 34);
-            const labelX = Math.min(point.x + 26, 962 - labelWidth);
-            const labelY = Math.max(28, point.y - 48);
-
-            return svg`
-              <g
-                class="stop"
-                tabindex="0"
-                role="button"
-                aria-label=${point.title}
-                ?selected=${selected}
-                @click=${() => this.#select(point.id)}
-                @pointerenter=${() => this.#hover(point.id)}
-                @keydown=${(event: KeyboardEvent) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    this.#select(point.id);
-                  }
-                }}
-              >
-                <rect class="label-bg" x=${labelX} y=${labelY} width=${labelWidth} height="34" rx="6"></rect>
-                <text class="label" x=${labelX + 16} y=${labelY + 23}>${point.title}</text>
-                <circle class="pin" cx=${point.x} cy=${point.y} r="23"></circle>
-                <text class="num" x=${point.x} y=${point.y + 1}>${point.index}</text>
-              </g>
-            `;
-          })}
-        </svg>
-      </section>
-    `;
+    return html`<section class="map" aria-label="OpenStreetMap itinerary map"></section>`;
   }
 }
 
 customElements.define('travel-itinerary', TravelItinerary);
 customElements.define('trip-timeline', TripTimeline);
 customElements.define('trip-stop', TripStop);
-customElements.define('trip-leg', TripLeg);
+customElements.define('trip-segment', TripSegment);
 customElements.define('trip-map', TripMap);

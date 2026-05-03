@@ -4,88 +4,247 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="A mobile-friendly itinerary viewer built with Lit web components.">
-    <title>Denmark Itinerary</title>
+    <title>Ghent to Skagen Bikepacking</title>
     <script type="module" src="/src/main.ts"></script>
+    <style>
+      html,
+      body {
+        margin: 0;
+      }
+    </style>
   </head>
   <body>
     <travel-itinerary>
       <script type="application/json">
         {
-          "title": "Denmark itinerary",
-          "summary": "A northbound route through city streets, old harbors, beaches, museums, and slow train windows.",
-          "dates": "June 12-19, 2026",
+          "title": "Ghent to Skagen bikepacking",
+          "summary": "Train to Hamburg, ride north to the Danish border, follow the West Coast Route to Grenen, then return by rail from Skagen.",
+          "dates": "July 4-20, 2026",
           "stops": [
             {
-              "id": "copenhagen",
-              "title": "Copenhagen",
-              "dateRange": "June 12-14",
-              "timestamp": "Arrive 10:20",
-              "description": "Base near Indre By for canals, food halls, design shops, and an easy first evening by the harbor.",
+              "id": "ghent",
+              "title": "Ghent",
+              "date": "July 4",
+              "timestamp": "Depart 07:00",
+              "description": "Roll to Gent-Sint-Pieters with the bike packed for rail travel. The fastest Ghent-Hamburg connections are about seven hours with changes.",
               "location": {
-                "lat": 55.6761,
-                "lng": 12.5683
+                "lat": 51.0543,
+                "lng": 3.7174
               }
             },
             {
-              "id": "odense",
-              "title": "Odense",
-              "date": "June 15",
-              "timestamp": "12:05",
-              "description": "A short stop for the old quarter, the river path, and a relaxed lunch before continuing west.",
+              "id": "hamburg",
+              "title": "Hamburg",
+              "dateRange": "July 4-5",
+              "timestamp": "Arrive afternoon",
+              "description": "Overnight near the station, assemble the bike, then leave the city along the Elbe toward Schleswig-Holstein.",
               "location": {
-                "lat": 55.4038,
-                "lng": 10.4024
+                "lat": 53.5488,
+                "lng": 9.9872
               }
             },
             {
-              "id": "aarhus",
-              "title": "Aarhus",
-              "dateRange": "June 15-17",
-              "description": "Museums, Latin Quarter cafes, harbor baths, and a day that can stretch out toward the forest and coast.",
+              "id": "brunsbuettel",
+              "title": "Brunsbüttel",
+              "date": "July 5",
+              "description": "First loaded bike day out of Hamburg, mostly flat riding toward the Elbe mouth and the Kiel Canal locks.",
               "location": {
-                "lat": 56.1629,
-                "lng": 10.2039
+                "lat": 53.8963,
+                "lng": 9.1392
+              }
+            },
+            {
+              "id": "husum",
+              "title": "Husum",
+              "date": "July 6",
+              "description": "North Sea marshland and dikes. A good recovery town before the last German border approach.",
+              "location": {
+                "lat": 54.4764,
+                "lng": 9.0511
+              }
+            },
+            {
+              "id": "rudboel",
+              "title": "Rudbøl",
+              "date": "July 7",
+              "description": "Enter Denmark at the southern start of National Cycle Route 1, the West Coast Route.",
+              "location": {
+                "lat": 54.9034,
+                "lng": 8.7507
+              }
+            },
+            {
+              "id": "ribe",
+              "title": "Ribe",
+              "date": "July 8",
+              "description": "Wadden Sea riding, old streets, and a short day that leaves time to look around Denmark's oldest town.",
+              "location": {
+                "lat": 55.3285,
+                "lng": 8.7615
+              }
+            },
+            {
+              "id": "hvide-sande",
+              "title": "Hvide Sande",
+              "date": "July 9",
+              "description": "Long exposed coast day through Esbjerg, Blåvand, and the dune strip toward Ringkøbing Fjord.",
+              "location": {
+                "lat": 56.0045,
+                "lng": 8.1294
+              }
+            },
+            {
+              "id": "thyboroen",
+              "title": "Thyborøn",
+              "date": "July 10",
+              "description": "Keep following Route 1 north. Sleep near the harbor so the Thyborøn-Agger ferry is easy in the morning.",
+              "location": {
+                "lat": 56.6986,
+                "lng": 8.2126
+              }
+            },
+            {
+              "id": "klitmoeller",
+              "title": "Klitmøller",
+              "date": "July 11",
+              "description": "Ferry across the Thyborøn Channel, then ride through Thy National Park to Cold Hawaii.",
+              "location": {
+                "lat": 57.0406,
+                "lng": 8.4903
+              }
+            },
+            {
+              "id": "loekken",
+              "title": "Løkken",
+              "date": "July 12",
+              "description": "A big west coast day past Hanstholm, Bulbjerg, and Jammerbugten. Keep food and water topped up.",
+              "location": {
+                "lat": 57.3705,
+                "lng": 9.7147
               }
             },
             {
               "id": "skagen",
               "title": "Skagen",
-              "dateRange": "June 18-19",
-              "timestamp": "Sunset walk",
-              "description": "End at the northern tip with dunes, yellow houses, seafood, and the meeting point of two seas.",
+              "dateRange": "July 13-14",
+              "timestamp": "Grenen finish",
+              "description": "Final ride through Tversted and Råbjerg Mile to Skagen, with a short walk or ride to Grenen at the northern tip.",
               "location": {
                 "lat": 57.7209,
                 "lng": 10.5839
               }
+            },
+            {
+              "id": "ghent-return",
+              "title": "Ghent",
+              "date": "July 15",
+              "timestamp": "Return by rail",
+              "description": "Train back from Skagen via Aalborg, Aarhus, Hamburg, Cologne, and Brussels. Treat it as a long travel day with bike reservations checked in advance.",
+              "location": {
+                "lat": 51.0543,
+                "lng": 3.7174
+              }
             }
           ],
-          "legs": [
+          "segments": [
             {
-              "from": "copenhagen",
-              "to": "odense",
+              "from": "ghent",
+              "to": "hamburg",
               "mode": "train",
-              "title": "InterCity train across Zealand and Funen",
-              "duration": "1h 20m",
-              "distance": "165 km",
-              "description": "Window seats if possible; this is the easiest day to keep luggage with you."
+              "title": "Ghent to Hamburg by rail",
+              "duration": "about 7h 10m fastest",
+              "distance": "510 km",
+              "description": "Typical route changes through Brussels or Antwerp and Germany. Reserve bike spaces where required."
             },
             {
-              "from": "odense",
-              "to": "aarhus",
-              "mode": "train",
-              "title": "Train over the Little Belt",
-              "duration": "1h 35m",
-              "distance": "145 km",
-              "description": "Plan a buffer for coffee before checking in."
+              "from": "hamburg",
+              "to": "brunsbuettel",
+              "mode": "bike",
+              "title": "Elbe and canal approach",
+              "duration": "5-6h riding",
+              "distance": "90 km",
+              "description": "Flat roll out of Hamburg, good as the first day with loaded bags."
             },
             {
-              "from": "aarhus",
+              "from": "brunsbuettel",
+              "to": "husum",
+              "mode": "bike",
+              "title": "Schleswig-Holstein North Sea coast",
+              "duration": "5-6h riding",
+              "distance": "88 km",
+              "description": "Dikes, wind, and small towns. The day is exposed but navigation is simple."
+            },
+            {
+              "from": "husum",
+              "to": "rudboel",
+              "mode": "bike",
+              "title": "Border ride to the West Coast Route",
+              "duration": "5-6h riding",
+              "distance": "82 km",
+              "description": "Cross into Denmark and finish at Rudbøl, the southern start point of Vestkystruten."
+            },
+            {
+              "from": "rudboel",
+              "to": "ribe",
+              "mode": "bike",
+              "title": "Vestkystruten begins",
+              "duration": "4-5h riding",
+              "distance": "68 km",
+              "description": "Marshland, Tønder, Højer, and Wadden Sea atmosphere without making the day too long."
+            },
+            {
+              "from": "ribe",
+              "to": "hvide-sande",
+              "mode": "bike",
+              "title": "Wadden Sea to the dune coast",
+              "duration": "6-7h riding",
+              "distance": "118 km",
+              "description": "A longer stage through Esbjerg and the west-facing holiday coast. Start early if the wind is north-westerly."
+            },
+            {
+              "from": "hvide-sande",
+              "to": "thyboroen",
+              "mode": "bike",
+              "title": "Ringkøbing Fjord and Harboøre Tange",
+              "duration": "5-6h riding",
+              "distance": "86 km",
+              "description": "Mostly flat riding between sea and fjord, with long views and few route decisions."
+            },
+            {
+              "from": "thyboroen",
+              "to": "klitmoeller",
+              "mode": "ferry",
+              "title": "Ferry to Agger, then Thy National Park",
+              "duration": "ferry hourly, then 4-5h riding",
+              "distance": "74 km",
+              "description": "The Thyborøn-Agger ferry normally sails hourly; after the crossing, ride the wildest-feeling section of the Danish west coast."
+            },
+            {
+              "from": "klitmoeller",
+              "to": "loekken",
+              "mode": "bike",
+              "title": "Jammerbugten coast",
+              "duration": "6-7h riding",
+              "distance": "112 km",
+              "description": "A demanding but memorable day with cliffs, beaches, and open coastal riding."
+            },
+            {
+              "from": "loekken",
               "to": "skagen",
+              "mode": "bike",
+              "title": "Final ride to Grenen",
+              "duration": "4-5h riding",
+              "distance": "76 km",
+              "description": "Pass Hirtshals, Tversted, and Råbjerg Mile before rolling into Skagen."
+            },
+            {
+              "from": "skagen",
+              "to": "ghent-return",
               "mode": "train",
-              "title": "Regional trains toward the top of Jutland",
-              "duration": "3h 10m",
-              "distance": "225 km",
-              "description": "A slower travel day, useful for reading, notes, and arriving with daylight left."
+              "title": "Skagen to Ghent by rail",
+              "duration": "long travel day",
+              "distance": "about 1,100 km",
+              "description": "Start with the regional train from Skagen toward Aalborg, then continue south through Denmark and Germany."
             }
           ]
         }
