@@ -1,4 +1,4 @@
-import { mdiArrowRight, mdiBike, mdiFerry, mdiTrain } from "@mdi/js";
+import { mdiArrowRight, mdiBike, mdiFerry, mdiFullscreen, mdiFullscreenExit, mdiTrain } from "@mdi/js";
 import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from "leaflet";
 import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
 import leafletStyles from "leaflet/dist/leaflet.css?inline";
@@ -97,13 +97,17 @@ class TravelItinerary extends LitElement {
   static properties = {
     data: { attribute: false },
     selectedStopId: { attribute: false },
+    focusedStopId: { attribute: false },
     selectedSegmentKey: { attribute: false },
+    focusedSegmentKey: { attribute: false },
     hoveredSegmentKey: { attribute: false },
   };
 
   data: ItineraryData = emptyItinerary();
   selectedStopId = "";
+  focusedStopId = "";
   selectedSegmentKey = "";
+  focusedSegmentKey = "";
   hoveredSegmentKey = "";
 
   static styles = css`
@@ -253,11 +257,23 @@ class TravelItinerary extends LitElement {
   }
 
   #selectStop(event: CustomEvent<{ id?: string }>) {
+    const nextStopId = event.detail?.id || this.selectedStopId;
+    this.selectedStopId = nextStopId;
+    this.focusedStopId = nextStopId;
+    this.selectedSegmentKey = "";
+    this.focusedSegmentKey = "";
+    this.hoveredSegmentKey = "";
+  }
+
+  #hoverStop(event: CustomEvent<{ id?: string }>) {
     this.selectedStopId = event.detail?.id || this.selectedStopId;
   }
 
   #selectSegment(event: CustomEvent<SegmentEventDetail>) {
-    this.selectedSegmentKey = event.detail?.key || this.selectedSegmentKey;
+    const nextSegmentKey = event.detail?.key || this.selectedSegmentKey;
+    this.selectedSegmentKey = nextSegmentKey;
+    this.focusedSegmentKey = nextSegmentKey;
+    this.focusedStopId = "";
   }
 
   #hoverSegment(event: CustomEvent<SegmentEventDetail>) {
@@ -277,7 +293,7 @@ class TravelItinerary extends LitElement {
         <div
           class="layout"
           @stop-select=${this.#selectStop}
-          @stop-hover=${this.#selectStop}
+          @stop-hover=${this.#hoverStop}
           @segment-select=${this.#selectSegment}
           @segment-hover=${this.#hoverSegment}
         >
@@ -292,6 +308,8 @@ class TravelItinerary extends LitElement {
             .segments=${segments}
             .selectedStopId=${this.selectedStopId}
             .activeSegmentKey=${activeSegmentKey}
+            .focusedStopId=${this.focusedStopId}
+            .focusedSegmentKey=${this.focusedSegmentKey}
           ></trip-map>
         </div>
       </div>
@@ -879,15 +897,34 @@ class TripMap extends LitElement {
     segments: { attribute: false },
     selectedStopId: { attribute: false },
     activeSegmentKey: { attribute: false },
+    focusedStopId: { attribute: false },
+    focusedSegmentKey: { attribute: false },
+    isFullscreen: { attribute: false },
   };
 
   stops: ItineraryStop[] = [];
   segments: ItinerarySegment[] = [];
   selectedStopId = "";
   activeSegmentKey = "";
+  focusedStopId = "";
+  focusedSegmentKey = "";
+  isFullscreen = false;
   #map?: LeafletMap;
   #layers?: LayerGroup;
   #lastRenderedKey = "";
+  #lastViewportKey = "";
+  #lastMeasuredMapHeight = 0;
+  #onFullscreenChange = () => {
+    const frame = this.renderRoot.querySelector<HTMLElement>(".frame");
+    this.isFullscreen = document.fullscreenElement === frame;
+    requestAnimationFrame(() => {
+      this.#syncDesktopMapHeight();
+      this.#map?.invalidateSize();
+    });
+  };
+  #onViewportChange = () => {
+    this.#syncDesktopMapHeight();
+  };
 
   static styles = [
     unsafeCSS(leafletStyles),
@@ -901,15 +938,70 @@ class TripMap extends LitElement {
         isolation: isolate;
       }
 
+      .frame:fullscreen {
+        background: #d9eeed;
+      }
+
       .map {
         max-width: 100%;
         width: 100%;
-        height: max(420px, calc(100dvh - 36px));
-        min-height: 420px;
+        height: var(--desktop-map-height, calc(100dvh - 36px));
+        min-height: var(--desktop-map-height, calc(100dvh - 36px));
         border: 1px solid rgba(23, 27, 34, 0.12);
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 18px 42px rgba(23, 27, 34, 0.12);
+      }
+
+      .frame:fullscreen .map {
+        height: 100dvh;
+        min-height: 100dvh;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .controls {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 500;
+        pointer-events: none;
+      }
+
+      .fullscreen-toggle {
+        pointer-events: auto;
+        width: 44px;
+        height: 44px;
+        border: 1px solid rgba(23, 27, 34, 0.12);
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.94);
+        color: #171b22;
+        box-shadow: 0 12px 28px rgba(23, 27, 34, 0.16);
+        cursor: pointer;
+        transition:
+          transform 160ms ease,
+          box-shadow 160ms ease,
+          background-color 160ms ease,
+          border-color 160ms ease;
+      }
+
+      .fullscreen-toggle:hover,
+      .fullscreen-toggle:focus-visible {
+        border-color: rgba(0, 108, 103, 0.4);
+        background: #fff;
+        box-shadow: 0 16px 34px rgba(23, 27, 34, 0.2);
+        outline: none;
+        transform: translateY(-1px);
+      }
+
+      .fullscreen-toggle svg {
+        width: 22px;
+        height: 22px;
+        display: block;
+        fill: currentColor;
       }
 
       .leaflet-container {
@@ -962,6 +1054,16 @@ class TripMap extends LitElement {
       }
 
       @media (max-width: 860px) {
+        .controls {
+          top: 10px;
+          right: 10px;
+        }
+
+        .fullscreen-toggle {
+          width: 42px;
+          height: 42px;
+        }
+
         .map {
           height: var(--mobile-map-height, 25dvh);
           min-height: var(--mobile-map-height, 25dvh);
@@ -982,6 +1084,13 @@ class TripMap extends LitElement {
     `,
   ];
 
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener("fullscreenchange", this.#onFullscreenChange);
+    window.addEventListener("scroll", this.#onViewportChange, { passive: true });
+    window.addEventListener("resize", this.#onViewportChange);
+  }
+
   firstUpdated() {
     const container = this.renderRoot.querySelector<HTMLElement>(".map");
     if (!container) {
@@ -999,6 +1108,7 @@ class TripMap extends LitElement {
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(this.#map);
     this.#layers = L.layerGroup().addTo(this.#map);
+    this.#syncDesktopMapHeight();
     this.#syncMap();
   }
 
@@ -1007,13 +1117,81 @@ class TripMap extends LitElement {
   }
 
   disconnectedCallback() {
+    document.removeEventListener("fullscreenchange", this.#onFullscreenChange);
+    window.removeEventListener("scroll", this.#onViewportChange);
+    window.removeEventListener("resize", this.#onViewportChange);
     this.#map?.remove();
     this.#map = undefined;
     super.disconnectedCallback();
   }
 
+  #syncDesktopMapHeight() {
+    const frame = this.renderRoot.querySelector<HTMLElement>(".frame");
+    if (!frame || this.isFullscreen) {
+      return;
+    }
+
+    if (window.innerWidth <= 860) {
+      frame.style.removeProperty("--desktop-map-height");
+      this.#lastMeasuredMapHeight = 0;
+      return;
+    }
+
+    const stickyTop = 18;
+    const bottomGap = 18;
+    const frameTop = frame.getBoundingClientRect().top;
+    const availableHeight = Math.max(260, Math.floor(window.innerHeight - Math.max(frameTop, stickyTop) - bottomGap));
+
+    frame.style.setProperty("--desktop-map-height", `${availableHeight}px`);
+    if (Math.abs(availableHeight - this.#lastMeasuredMapHeight) > 1) {
+      this.#lastMeasuredMapHeight = availableHeight;
+      requestAnimationFrame(() => this.#map?.invalidateSize());
+    }
+  }
+
+  async #toggleFullscreen() {
+    const frame = this.renderRoot.querySelector<HTMLElement>(".frame");
+    if (!frame || typeof frame.requestFullscreen !== "function") {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === frame) {
+        await document.exitFullscreen();
+      } else {
+        await frame.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Unable to toggle fullscreen map", error);
+    }
+  }
+
   #stopById(id?: string): MappedStop | undefined {
     return this.stops.find((stop): stop is MappedStop => stop.id === id && hasLocation(stop));
+  }
+
+  #segmentByKey(key?: string) {
+    return this.segments.find((segment) => segmentKey(segment) === key);
+  }
+
+  #focusedStops() {
+    if (hasText(this.focusedSegmentKey)) {
+      const segment = this.#segmentByKey(this.focusedSegmentKey);
+      const from = this.#stopById(segment?.mapFrom || segment?.from);
+      const to = this.#stopById(segment?.mapTo || segment?.to);
+      return [from, to].filter(Boolean) as MappedStop[];
+    }
+
+    if (hasText(this.focusedStopId)) {
+      const index = this.stops.findIndex((stop) => stop.id === this.focusedStopId);
+      if (index === -1) {
+        return [];
+      }
+
+      return [this.stops[index - 1], this.stops[index], this.stops[index + 1]].filter(hasLocation);
+    }
+
+    return [];
   }
 
   #segmentStyle(segment: ItinerarySegment, active = false) {
@@ -1114,6 +1292,25 @@ class TripMap extends LitElement {
       const bounds = L.latLngBounds(mappedStops.map(stopLatLng));
       map.fitBounds(bounds, { padding: [24, 24] });
     }
+
+    const focusedStops = this.#focusedStops();
+    const viewportKey = JSON.stringify({ stop: this.focusedStopId, segment: this.focusedSegmentKey });
+    if (focusedStops.length && this.#lastViewportKey !== viewportKey) {
+      this.#lastViewportKey = viewportKey;
+      if (focusedStops.length === 1) {
+        map.setView(stopLatLng(focusedStops[0]), Math.max(map.getZoom(), 9), { animate: true });
+      } else {
+        map.fitBounds(L.latLngBounds(focusedStops.map(stopLatLng)), {
+          padding: [48, 48],
+          maxZoom: 11,
+          animate: true,
+        });
+      }
+    }
+
+    if (!focusedStops.length) {
+      this.#lastViewportKey = "";
+    }
   }
 
   #select(id: string) {
@@ -1157,8 +1354,16 @@ class TripMap extends LitElement {
   }
 
   render() {
+    const icon = this.isFullscreen ? libraryIcon(mdiFullscreenExit) : libraryIcon(mdiFullscreen);
+    const label = this.isFullscreen ? "Exit fullscreen map" : "Fullscreen map";
+
     return html`
       <section class="frame">
+        <div class="controls">
+          <button class="fullscreen-toggle" type="button" aria-label=${label} title=${label} @click=${this.#toggleFullscreen}>
+            ${icon}
+          </button>
+        </div>
         <section class="map" aria-label="OpenStreetMap itinerary map"></section>
       </section>
     `;
