@@ -1,5 +1,5 @@
 import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from 'leaflet';
-import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
+import { LitElement, css, html, nothing, svg, unsafeCSS } from 'lit';
 import leafletStyles from 'leaflet/dist/leaflet.css?inline';
 
 type TravelMode = 'bike' | 'boat' | 'bus' | 'car' | 'ferry' | 'flight' | 'plane' | 'train' | 'walk' | string;
@@ -12,6 +12,7 @@ interface StopLocation {
 interface ItineraryStop {
   id: string;
   title: string;
+  countryCode?: string;
   date?: string;
   dateRange?: string;
   timestamp?: string;
@@ -41,16 +42,10 @@ type MappedStop = ItineraryStop & { location: StopLocation };
 
 const emptyItinerary = (): ItineraryData => ({ stops: [], segments: [] });
 
-const modeIcons: Record<string, string> = {
-  bike: 'B',
-  boat: 'F',
-  bus: 'U',
-  car: 'C',
-  ferry: 'F',
-  flight: 'P',
-  plane: 'P',
-  train: 'T',
-  walk: 'W',
+const countryNames: Record<string, string> = {
+  BE: 'Belgium',
+  DE: 'Germany',
+  DK: 'Denmark',
 };
 
 const hasText = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
@@ -58,6 +53,56 @@ const hasLocation = (stop: ItineraryStop): stop is MappedStop =>
   Number.isFinite(stop.location?.lat) && Number.isFinite(stop.location?.lng);
 const stopDate = (stop: ItineraryStop) => [stop.dateRange || stop.date, stop.timestamp].filter(hasText).join(' · ');
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
+const countryIcon = (countryCode?: string) => {
+  if (!hasText(countryCode) || countryCode.length !== 2) {
+    return '';
+  }
+
+  return String.fromCodePoint(...countryCode.toUpperCase().split('').map((letter) => 127397 + letter.charCodeAt(0)));
+};
+
+const modeIcon = (mode?: TravelMode) => {
+  switch (mode) {
+    case 'bike':
+      return svg`
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="6" cy="17" r="3.2"></circle>
+          <circle cx="18" cy="17" r="3.2"></circle>
+          <path d="M8.8 17h3.1l2.8-6.5h-3.1l-2.8 6.5Z"></path>
+          <path d="M12 17 7.7 10.5h3.9"></path>
+          <path d="M15.1 8.2h2.8"></path>
+        </svg>
+      `;
+    case 'ferry':
+    case 'boat':
+      return svg`
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5.2 15.8 7 8h10l1.8 7.8"></path>
+          <path d="M8.2 8V5.5h7.6V8"></path>
+          <path d="M3.8 15.8h16.4l-2 3.3a3.5 3.5 0 0 1-5 .9 3.5 3.5 0 0 1-4.4 0 3.5 3.5 0 0 1-5-.9l-2-3.3Z"></path>
+        </svg>
+      `;
+    case 'train':
+      return svg`
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="6" y="3.5" width="12" height="13.5" rx="2.4"></rect>
+          <path d="M8.5 7.5h7"></path>
+          <path d="M8.5 11.2h7"></path>
+          <circle cx="9" cy="14.5" r="1"></circle>
+          <circle cx="15" cy="14.5" r="1"></circle>
+          <path d="m8 20 2.2-3"></path>
+          <path d="m16 20-2.2-3"></path>
+        </svg>
+      `;
+    default:
+      return svg`
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3.5v17"></path>
+          <path d="m5.5 14.5 6.5 6 6.5-6"></path>
+        </svg>
+      `;
+  }
+};
 
 class TravelItinerary extends LitElement {
   static properties = {
@@ -330,11 +375,32 @@ class TripStop extends LitElement {
       gap: 7px;
     }
 
+    .heading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
     h2 {
       margin: 0;
       font-size: clamp(22px, 4vw, 30px);
       line-height: 1.1;
       letter-spacing: 0;
+    }
+
+    .country {
+      width: 26px;
+      height: 26px;
+      border: 1px solid rgba(23, 27, 34, 0.12);
+      border-radius: 50%;
+      display: inline-grid;
+      flex: 0 0 auto;
+      place-items: center;
+      background: #fff;
+      font-size: 16px;
+      line-height: 1;
+      box-shadow: 0 5px 14px rgba(23, 27, 34, 0.1);
     }
 
     .date {
@@ -385,12 +451,17 @@ class TripStop extends LitElement {
 
   render() {
     const date = stopDate(this.stop);
+    const flag = countryIcon(this.stop.countryCode);
+    const countryName = hasText(this.stop.countryCode) ? countryNames[this.stop.countryCode.toUpperCase()] : undefined;
 
     return html`
       <button type="button" @click=${this.#select} @pointerenter=${this.#hover}>
         <span class="index">${this.index}</span>
         <span class="content">
-          <h2>${this.stop.title}</h2>
+          <span class="heading">
+            <h2>${this.stop.title}</h2>
+            ${hasText(flag) ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
+          </span>
           ${hasText(date) ? html`<span class="date">${date}</span>` : nothing}
           ${hasText(this.stop.description) ? html`<p>${this.stop.description}</p>` : nothing}
         </span>
@@ -429,8 +500,16 @@ class TripSegment extends LitElement {
       place-items: center;
       background: #f6bf49;
       color: #171b22;
-      font-size: 12px;
-      font-weight: 850;
+    }
+
+    .mode svg {
+      width: 19px;
+      height: 19px;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.9;
     }
 
     .content {
@@ -475,7 +554,7 @@ class TripSegment extends LitElement {
   render() {
     const segment = this.segment || {};
     const facts = [segment.duration, segment.distance].filter(hasText);
-    const icon = hasText(segment.mode) ? modeIcons[segment.mode] || '>' : '>';
+    const icon = modeIcon(segment.mode);
 
     if (!hasText(segment.title) && !hasText(segment.description) && facts.length === 0) {
       return nothing;
@@ -483,7 +562,7 @@ class TripSegment extends LitElement {
 
     return html`
       <div class="segment">
-        <span class="mode" aria-hidden="true">${icon}</span>
+        <span class="mode" title=${hasText(segment.mode) ? segment.mode : 'travel'}>${icon}</span>
         <span class="content">
           ${hasText(segment.title) ? html`<span class="title">${segment.title}</span>` : nothing}
           ${facts.length ? html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>` : nothing}
@@ -536,6 +615,25 @@ class TripMap extends LitElement {
         color: #171b22;
         font-weight: 800;
         box-shadow: 0 8px 20px rgba(23, 27, 34, 0.12);
+      }
+
+      .map-country-marker {
+        width: 26px;
+        height: 26px;
+        border: 2px solid #006c67;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(23, 27, 34, 0.18);
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      .map-country-marker.selected {
+        border-color: #171b22;
+        background: #d45c3d;
+        transform: scale(1.14);
       }
 
       @media (max-width: 520px) {
@@ -620,16 +718,17 @@ class TripMap extends LitElement {
 
     mappedStops.forEach((stop, index) => {
       const selected = stop.id === this.selectedStopId;
-      const marker = L.circleMarker(stopLatLng(stop), {
-        radius: selected ? 10 : 7,
-        color: selected ? '#171b22' : '#006c67',
-        fillColor: selected ? '#d45c3d' : '#ffffff',
-        fillOpacity: 1,
-        weight: selected ? 3 : 2,
+      const flag = countryIcon(stop.countryCode);
+      const marker = L.marker(stopLatLng(stop), {
+        icon: L.divIcon({
+          className: '',
+          html: `<span class="map-country-marker${selected ? ' selected' : ''}">${flag || index + 1}</span>`,
+          iconAnchor: [13, 13],
+        }),
       });
 
       marker
-        .bindTooltip(`${index + 1}. ${stop.title}`, {
+        .bindTooltip(`${index + 1}. ${flag ? `${flag} ` : ''}${stop.title}`, {
           direction: 'top',
           offset: [0, -8],
         })
