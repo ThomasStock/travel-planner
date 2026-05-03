@@ -330,7 +330,9 @@ class TripTimeline extends LitElement {
   selectedStopId = "";
   activeSegmentKey = "";
   #observer?: IntersectionObserver;
+  #autoHighlightMedia?: MediaQueryList;
   #visibleRatios = new Map<string, number>();
+  #onAutoHighlightMediaChange = () => this.#observeStops();
 
   static styles = css`
     :host {
@@ -350,6 +352,10 @@ class TripTimeline extends LitElement {
   }
 
   firstUpdated() {
+    if (typeof window.matchMedia === "function") {
+      this.#autoHighlightMedia = window.matchMedia("(min-width: 861px)");
+      this.#autoHighlightMedia.addEventListener("change", this.#onAutoHighlightMediaChange);
+    }
     this.#observeStops();
   }
 
@@ -360,6 +366,8 @@ class TripTimeline extends LitElement {
   }
 
   disconnectedCallback() {
+    this.#autoHighlightMedia?.removeEventListener("change", this.#onAutoHighlightMediaChange);
+    this.#autoHighlightMedia = undefined;
     this.#observer?.disconnect();
     this.#observer = undefined;
     super.disconnectedCallback();
@@ -370,7 +378,7 @@ class TripTimeline extends LitElement {
     this.#visibleRatios.clear();
 
     const stopElements = Array.from(this.renderRoot.querySelectorAll<TripStop>("trip-stop"));
-    if (!stopElements.length || typeof IntersectionObserver === "undefined") {
+    if (!stopElements.length || typeof IntersectionObserver === "undefined" || this.#autoHighlightMedia?.matches === false) {
       return;
     }
 
