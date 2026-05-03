@@ -129,10 +129,12 @@ class TravelItinerary extends LitElement {
       --mobile-map-height: 25dvh;
       --mobile-map-gap: 84px;
       --mobile-first-stop-space: 40px;
+      --shell-inline-padding: clamp(16px, 4vw, 40px);
       --page-background: radial-gradient(circle at 15% 12%, rgba(0, 144, 128, 0.12), transparent 28rem),
         linear-gradient(135deg, #fbfaf7 0%, #f3f7f5 48%, #f8f4f0 100%);
       color: #171b22;
       background: var(--page-background);
+      overflow-x: clip;
       font-family:
         Inter,
         ui-sans-serif,
@@ -150,7 +152,7 @@ class TravelItinerary extends LitElement {
     .shell {
       width: min(1180px, 100%);
       margin: 0 auto;
-      padding: 28px clamp(16px, 4vw, 40px) 40px;
+      padding: 28px var(--shell-inline-padding) 40px;
       overflow: visible;
     }
 
@@ -204,8 +206,8 @@ class TravelItinerary extends LitElement {
 
     @media (max-width: 860px) {
       .shell {
-        width: 100vw;
-        max-width: 100vw;
+        width: 100%;
+        max-width: 100%;
         padding-top: 18px;
       }
 
@@ -222,12 +224,9 @@ class TravelItinerary extends LitElement {
         position: sticky;
         top: 0;
         order: -1;
-        width: 100vw;
-        width: 100svw;
-        margin-left: calc(50% - 50vw);
-        margin-left: calc(50% - 50svw);
-        margin-right: calc(50% - 50vw);
-        margin-right: calc(50% - 50svw);
+        width: auto;
+        margin-left: calc(var(--shell-inline-padding) * -1);
+        margin-right: calc(var(--shell-inline-padding) * -1);
         margin-bottom: calc(var(--mobile-map-gap) - var(--mobile-map-height));
         border-bottom: 1px solid rgba(23, 27, 34, 0.14);
         z-index: 12;
