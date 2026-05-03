@@ -380,7 +380,7 @@ class TripStop extends LitElement {
     .heading {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       min-width: 0;
     }
 
@@ -392,17 +392,10 @@ class TripStop extends LitElement {
     }
 
     .country {
-      width: 26px;
-      height: 26px;
-      border: 1px solid rgba(23, 27, 34, 0.12);
-      border-radius: 50%;
-      display: inline-grid;
+      display: inline-block;
       flex: 0 0 auto;
-      place-items: center;
-      background: #fff;
-      font-size: 16px;
+      font-size: 21px;
       line-height: 1;
-      box-shadow: 0 5px 14px rgba(23, 27, 34, 0.1);
     }
 
     .date {
@@ -461,8 +454,8 @@ class TripStop extends LitElement {
         <span class="index">${this.index}</span>
         <span class="content">
           <span class="heading">
-            <h2>${this.stop.title}</h2>
             ${hasText(flag) ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
+            <h2>${this.stop.title}</h2>
           </span>
           ${hasText(date) ? html`<span class="date">${date}</span>` : nothing}
           ${hasText(this.stop.description) ? html`<p>${this.stop.description}</p>` : nothing}
