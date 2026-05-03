@@ -1,8 +1,8 @@
-import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from 'leaflet';
-import { LitElement, css, html, nothing, svg, unsafeCSS } from 'lit';
-import leafletStyles from 'leaflet/dist/leaflet.css?inline';
+import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from "leaflet";
+import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
+import leafletStyles from "leaflet/dist/leaflet.css?inline";
 
-type TravelMode = 'bike' | 'boat' | 'bus' | 'car' | 'ferry' | 'flight' | 'plane' | 'train' | 'walk' | string;
+type TravelMode = "bike" | "boat" | "bus" | "car" | "ferry" | "flight" | "plane" | "train" | "walk" | string;
 
 interface StopLocation {
   lat: number;
@@ -45,27 +45,31 @@ type MappedStop = ItineraryStop & { location: StopLocation };
 const emptyItinerary = (): ItineraryData => ({ stops: [], segments: [] });
 
 const countryNames: Record<string, string> = {
-  BE: 'Belgium',
-  DE: 'Germany',
-  DK: 'Denmark',
+  BE: "Belgium",
+  DE: "Germany",
+  DK: "Denmark",
 };
 
-const hasText = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
-const hasLocation = (stop: ItineraryStop): stop is MappedStop =>
-  Number.isFinite(stop.location?.lat) && Number.isFinite(stop.location?.lng);
-const stopDate = (stop: ItineraryStop) => [stop.dateRange || stop.date, stop.timestamp].filter(hasText).join(' · ');
+const hasText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const hasLocation = (stop: ItineraryStop): stop is MappedStop => Number.isFinite(stop.location?.lat) && Number.isFinite(stop.location?.lng);
+const stopDate = (stop: ItineraryStop) => [stop.dateRange || stop.date, stop.timestamp].filter(hasText).join(" · ");
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
 const countryIcon = (countryCode?: string) => {
   if (!hasText(countryCode) || countryCode.length !== 2) {
-    return '';
+    return "";
   }
 
-  return String.fromCodePoint(...countryCode.toUpperCase().split('').map((letter) => 127397 + letter.charCodeAt(0)));
+  return String.fromCodePoint(
+    ...countryCode
+      .toUpperCase()
+      .split("")
+      .map((letter) => 127397 + letter.charCodeAt(0)),
+  );
 };
 
 const modeIcon = (mode?: TravelMode) => {
   switch (mode) {
-    case 'bike':
+    case "bike":
       return svg`
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="6" cy="17" r="3.2"></circle>
@@ -75,8 +79,8 @@ const modeIcon = (mode?: TravelMode) => {
           <path d="M15.1 8.2h2.8"></path>
         </svg>
       `;
-    case 'ferry':
-    case 'boat':
+    case "ferry":
+    case "boat":
       return svg`
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5.2 15.8 7 8h10l1.8 7.8"></path>
@@ -84,7 +88,7 @@ const modeIcon = (mode?: TravelMode) => {
           <path d="M3.8 15.8h16.4l-2 3.3a3.5 3.5 0 0 1-5 .9 3.5 3.5 0 0 1-4.4 0 3.5 3.5 0 0 1-5-.9l-2-3.3Z"></path>
         </svg>
       `;
-    case 'train':
+    case "train":
       return svg`
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="6" y="3.5" width="12" height="13.5" rx="2.4"></rect>
@@ -113,17 +117,23 @@ class TravelItinerary extends LitElement {
   };
 
   data: ItineraryData = emptyItinerary();
-  selectedStopId = '';
+  selectedStopId = "";
 
   static styles = css`
     :host {
       display: block;
       min-height: 100vh;
       color: #171b22;
-      background:
-        radial-gradient(circle at 15% 12%, rgba(0, 144, 128, 0.12), transparent 28rem),
+      background: radial-gradient(circle at 15% 12%, rgba(0, 144, 128, 0.12), transparent 28rem),
         linear-gradient(135deg, #fbfaf7 0%, #f3f7f5 48%, #f8f4f0 100%);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
     }
 
     * {
@@ -211,7 +221,7 @@ class TravelItinerary extends LitElement {
     super.connectedCallback();
     if (!this.data?.stops?.length) {
       this.data = this.#readData();
-      this.selectedStopId = this.data.stops?.[0]?.id || '';
+      this.selectedStopId = this.data.stops?.[0]?.id || "";
     }
   }
 
@@ -223,11 +233,7 @@ class TravelItinerary extends LitElement {
 
     try {
       const parsed = JSON.parse(source.textContent) as Partial<ItineraryData> & { legs?: ItinerarySegment[] };
-      const segments = Array.isArray(parsed.segments)
-        ? parsed.segments
-        : Array.isArray(parsed.legs)
-          ? parsed.legs
-          : [];
+      const segments = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed.legs) ? parsed.legs : [];
 
       return {
         ...parsed,
@@ -235,7 +241,7 @@ class TravelItinerary extends LitElement {
         segments,
       };
     } catch (error) {
-      console.error('Invalid itinerary JSON', error);
+      console.error("Invalid itinerary JSON", error);
       return emptyItinerary();
     }
   }
@@ -250,21 +256,12 @@ class TravelItinerary extends LitElement {
     return html`
       <div class="shell">
         <header>
-          ${hasText(dates) ? html`<p class="meta">${dates}</p>` : nothing}
-          ${hasText(title) ? html`<h1>${title}</h1>` : nothing}
+          ${hasText(dates) ? html`<p class="meta">${dates}</p>` : nothing} ${hasText(title) ? html`<h1>${title}</h1>` : nothing}
           ${hasText(summary) ? html`<p class="summary">${summary}</p>` : nothing}
         </header>
         <div class="layout" @stop-select=${this.#selectStop} @stop-hover=${this.#selectStop}>
-          <trip-timeline
-            .stops=${stops}
-            .segments=${segments}
-            .selectedStopId=${this.selectedStopId}
-          ></trip-timeline>
-          <trip-map
-            .stops=${stops}
-            .segments=${segments}
-            .selectedStopId=${this.selectedStopId}
-          ></trip-map>
+          <trip-timeline .stops=${stops} .segments=${segments} .selectedStopId=${this.selectedStopId}></trip-timeline>
+          <trip-map .stops=${stops} .segments=${segments} .selectedStopId=${this.selectedStopId}></trip-map>
         </div>
       </div>
     `;
@@ -280,7 +277,7 @@ class TripTimeline extends LitElement {
 
   stops: ItineraryStop[] = [];
   segments: ItinerarySegment[] = [];
-  selectedStopId = '';
+  selectedStopId = "";
 
   static styles = css`
     :host {
@@ -302,16 +299,12 @@ class TripTimeline extends LitElement {
   render() {
     return html`
       <section class="timeline" aria-label="Itinerary timeline">
-        ${this.stops.map((stop, index) => html`
-          <trip-stop
-            .stop=${stop}
-            .index=${index + 1}
-            .selected=${this.selectedStopId === stop.id}
-          ></trip-stop>
-          ${index < this.stops.length - 1
-            ? html`<trip-segment .segment=${this.#segmentAfter(stop, index)}></trip-segment>`
-            : nothing}
-        `)}
+        ${this.stops.map(
+          (stop, index) => html`
+            <trip-stop .stop=${stop} .index=${index + 1} .selected=${this.selectedStopId === stop.id}></trip-stop>
+            ${index < this.stops.length - 1 ? html`<trip-segment .segment=${this.#segmentAfter(stop, index)}></trip-segment>` : nothing}
+          `,
+        )}
       </section>
     `;
   }
@@ -324,7 +317,7 @@ class TripStop extends LitElement {
     selected: { type: Boolean, reflect: true },
   };
 
-  stop: ItineraryStop = { id: '', title: '' };
+  stop: ItineraryStop = { id: "", title: "" };
   index = 1;
   selected = false;
 
@@ -346,7 +339,10 @@ class TripStop extends LitElement {
       text-align: left;
       box-shadow: 0 14px 34px rgba(23, 27, 34, 0.08);
       cursor: pointer;
-      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+      transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
     }
 
     button:hover,
@@ -429,19 +425,23 @@ class TripStop extends LitElement {
   `;
 
   #select() {
-    this.dispatchEvent(new CustomEvent('stop-select', {
-      bubbles: true,
-      composed: true,
-      detail: { id: this.stop.id },
-    }));
+    this.dispatchEvent(
+      new CustomEvent("stop-select", {
+        bubbles: true,
+        composed: true,
+        detail: { id: this.stop.id },
+      }),
+    );
   }
 
   #hover() {
-    this.dispatchEvent(new CustomEvent('stop-hover', {
-      bubbles: true,
-      composed: true,
-      detail: { id: this.stop.id },
-    }));
+    this.dispatchEvent(
+      new CustomEvent("stop-hover", {
+        bubbles: true,
+        composed: true,
+        detail: { id: this.stop.id },
+      }),
+    );
   }
 
   render() {
@@ -480,37 +480,40 @@ class TripSegment extends LitElement {
 
     .segment {
       display: grid;
-      grid-template-columns: 30px minmax(0, 1fr);
-      gap: 12px;
-      padding: 8px 0 8px 22px;
-      border-left: 2px dashed rgba(0, 108, 103, 0.42);
+      grid-template-columns: 38px minmax(0, 1fr);
+      gap: 14px;
+      padding: 10px 0;
       color: #52605f;
+      align-items: start;
     }
 
     .mode {
-      width: 30px;
-      height: 30px;
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
       display: grid;
       place-items: center;
-      background: #f6bf49;
-      color: #171b22;
+      background: #d45c3d;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(212, 92, 61, 0.3);
+      flex-shrink: 0;
     }
 
     .mode svg {
-      width: 19px;
-      height: 19px;
+      width: 20px;
+      height: 20px;
       fill: none;
       stroke: currentColor;
       stroke-linecap: round;
       stroke-linejoin: round;
-      stroke-width: 1.9;
+      stroke-width: 1.8;
     }
 
     .content {
       display: grid;
       gap: 5px;
       min-width: 0;
+      padding-top: 2px;
     }
 
     .title {
@@ -536,12 +539,22 @@ class TripSegment extends LitElement {
 
     @media (max-width: 520px) {
       :host {
-        padding-left: 28px;
+        padding-left: 34px;
       }
 
       .segment {
-        grid-template-columns: 28px minmax(0, 1fr);
-        padding-left: 16px;
+        grid-template-columns: 32px minmax(0, 1fr);
+        gap: 12px;
+      }
+
+      .mode {
+        width: 32px;
+        height: 32px;
+      }
+
+      .mode svg {
+        width: 18px;
+        height: 18px;
       }
     }
   `;
@@ -557,7 +570,7 @@ class TripSegment extends LitElement {
 
     return html`
       <div class="segment">
-        <span class="mode" title=${hasText(segment.mode) ? segment.mode : 'travel'}>${icon}</span>
+        <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
         <span class="content">
           ${hasText(segment.title) ? html`<span class="title">${segment.title}</span>` : nothing}
           ${facts.length ? html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>` : nothing}
@@ -577,7 +590,7 @@ class TripMap extends LitElement {
 
   stops: ItineraryStop[] = [];
   segments: ItinerarySegment[] = [];
-  selectedStopId = '';
+  selectedStopId = "";
   #map?: LeafletMap;
   #layers?: LayerGroup;
 
@@ -600,7 +613,14 @@ class TripMap extends LitElement {
       }
 
       .leaflet-container {
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
         background: #d9eeed;
       }
 
@@ -643,7 +663,7 @@ class TripMap extends LitElement {
   ];
 
   firstUpdated() {
-    const container = this.renderRoot.querySelector<HTMLElement>('.map');
+    const container = this.renderRoot.querySelector<HTMLElement>(".map");
     if (!container) {
       return;
     }
@@ -653,10 +673,10 @@ class TripMap extends LitElement {
       scrollWheelZoom: false,
       zoomControl: false,
     });
-    L.control.zoom({ position: 'bottomleft' }).addTo(this.#map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.control.zoom({ position: "bottomleft" }).addTo(this.#map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
+      attribution: "&copy; OpenStreetMap contributors",
     }).addTo(this.#map);
     this.#layers = L.layerGroup().addTo(this.#map);
     this.#syncMap();
@@ -677,14 +697,14 @@ class TripMap extends LitElement {
   }
 
   #segmentStyle(segment: ItinerarySegment) {
-    const isTrain = segment.mode === 'train';
-    const isFerry = segment.mode === 'ferry';
+    const isTrain = segment.mode === "train";
+    const isFerry = segment.mode === "ferry";
 
     return {
-      color: isTrain ? '#4a5fbc' : isFerry ? '#007a8a' : '#d45c3d',
+      color: isTrain ? "#4a5fbc" : isFerry ? "#007a8a" : "#d45c3d",
       weight: isTrain ? 3 : 4,
       opacity: 0.88,
-      dashArray: isTrain ? '8 8' : isFerry ? '2 8' : undefined,
+      dashArray: isTrain ? "8 8" : isFerry ? "2 8" : undefined,
     };
   }
 
@@ -709,7 +729,7 @@ class TripMap extends LitElement {
       }
 
       L.polyline([stopLatLng(from), stopLatLng(to)], this.#segmentStyle(segment))
-        .bindTooltip(segment.title || '')
+        .bindTooltip(segment.title || "")
         .addTo(layers);
     }
 
@@ -717,19 +737,19 @@ class TripMap extends LitElement {
       const selected = stop.id === this.selectedStopId;
       const marker = L.marker(stopLatLng(stop), {
         icon: L.divIcon({
-          className: '',
-          html: `<span class="map-stop-marker${selected ? ' selected' : ''}">${index + 1}</span>`,
+          className: "",
+          html: `<span class="map-stop-marker${selected ? " selected" : ""}">${index + 1}</span>`,
           iconAnchor: [13, 13],
         }),
       });
 
       marker
         .bindTooltip(`${index + 1}. ${stop.title}`, {
-          direction: 'top',
+          direction: "top",
           offset: [0, -8],
         })
-        .on('click', () => this.#select(stop.id))
-        .on('mouseover', () => this.#hover(stop.id))
+        .on("click", () => this.#select(stop.id))
+        .on("mouseover", () => this.#hover(stop.id))
         .addTo(layers);
     });
 
@@ -738,19 +758,23 @@ class TripMap extends LitElement {
   }
 
   #select(id: string) {
-    this.dispatchEvent(new CustomEvent('stop-select', {
-      bubbles: true,
-      composed: true,
-      detail: { id },
-    }));
+    this.dispatchEvent(
+      new CustomEvent("stop-select", {
+        bubbles: true,
+        composed: true,
+        detail: { id },
+      }),
+    );
   }
 
   #hover(id: string) {
-    this.dispatchEvent(new CustomEvent('stop-hover', {
-      bubbles: true,
-      composed: true,
-      detail: { id },
-    }));
+    this.dispatchEvent(
+      new CustomEvent("stop-hover", {
+        bubbles: true,
+        composed: true,
+        detail: { id },
+      }),
+    );
   }
 
   render() {
@@ -758,8 +782,8 @@ class TripMap extends LitElement {
   }
 }
 
-customElements.define('travel-itinerary', TravelItinerary);
-customElements.define('trip-timeline', TripTimeline);
-customElements.define('trip-stop', TripStop);
-customElements.define('trip-segment', TripSegment);
-customElements.define('trip-map', TripMap);
+customElements.define("travel-itinerary", TravelItinerary);
+customElements.define("trip-timeline", TripTimeline);
+customElements.define("trip-stop", TripStop);
+customElements.define("trip-segment", TripSegment);
+customElements.define("trip-map", TripMap);
