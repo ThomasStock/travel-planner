@@ -222,21 +222,15 @@ class TravelItinerary extends LitElement {
         position: sticky;
         top: 0;
         order: -1;
+        width: 100vw;
+        width: 100svw;
+        margin-left: calc(50% - 50vw);
+        margin-left: calc(50% - 50svw);
+        margin-right: calc(50% - 50vw);
+        margin-right: calc(50% - 50svw);
         margin-bottom: calc(var(--mobile-map-gap) - var(--mobile-map-height));
+        border-bottom: 1px solid rgba(23, 27, 34, 0.14);
         z-index: 12;
-        isolation: isolate;
-      }
-
-      trip-map::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        right: calc(50% - 50vw);
-        bottom: 0;
-        left: calc(50% - 50vw);
-        background: var(--page-background);
-        pointer-events: none;
-        z-index: -1;
       }
 
       trip-timeline {
@@ -813,6 +807,9 @@ class TripMap extends LitElement {
           height: var(--mobile-map-height, 25dvh);
           min-height: var(--mobile-map-height, 25dvh);
           max-height: var(--mobile-map-height, 25dvh);
+          border-right: 0;
+          border-left: 0;
+          border-radius: 0;
         }
       }
 
