@@ -647,9 +647,6 @@ class TripStop extends LitElement {
     }
 
     .transfer-day .date-part {
-      padding: 1px 4px;
-      background: #f3f7f5;
-      border-radius: 4px;
       font-size: 11px;
       font-weight: 620;
       color: rgba(82, 96, 95, 0.6);
@@ -837,12 +834,20 @@ class TripSegment extends LitElement {
 
     .rail::before {
       top: 0;
-      bottom: calc(50% + 58px);
+      bottom: calc(50% + 34px);
     }
 
     .rail::after {
-      top: calc(50% + 58px);
+      top: calc(50% + 34px);
       bottom: 0;
+    }
+
+    .segment.has-rail-label .rail::before {
+      bottom: calc(50% + 58px);
+    }
+
+    .segment.has-rail-label .rail::after {
+      top: calc(50% + 58px);
     }
 
     .mode {
@@ -882,9 +887,6 @@ class TripSegment extends LitElement {
       display: grid;
       gap: 2px;
       justify-items: center;
-      padding: 2px 4px;
-      background: #f3f7f5;
-      border-radius: 4px;
       color: rgba(82, 96, 95, 0.6);
       font-size: 10px;
       font-weight: 620;
@@ -992,10 +994,18 @@ class TripSegment extends LitElement {
       }
 
       .rail::before {
-        bottom: calc(50% + 52px);
+        bottom: calc(50% + 30px);
       }
 
       .rail::after {
+        top: calc(50% + 30px);
+      }
+
+      .segment.has-rail-label .rail::before {
+        bottom: calc(50% + 52px);
+      }
+
+      .segment.has-rail-label .rail::after {
         top: calc(50% + 52px);
       }
 
@@ -1075,7 +1085,7 @@ class TripSegment extends LitElement {
 
     return html`
       <article
-        class="segment"
+        class=${hasText(segment.day) || hasText(segment.dateLabel) ? "segment has-rail-label" : "segment"}
         role="button"
         tabindex="0"
         @click=${this.#select}
