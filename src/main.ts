@@ -16,6 +16,7 @@ interface ItineraryStop {
   countryCode?: string;
   kind?: "transfer";
   marker?: "start";
+  day?: string;
   night?: string;
   nightRange?: string;
   stay?: string;
@@ -39,6 +40,7 @@ interface ItinerarySegment {
   title?: string;
   duration?: string;
   distance?: string;
+  routeUrl?: string;
   description?: string;
 }
 
@@ -68,7 +70,7 @@ const stopNightDate = (stop: ItineraryStop) => stop.nightRange || stop.night || 
 const stopNightLabel = (stop: ItineraryStop) =>
   stop.stay || stop.arrival || (hasText(stopNightDate(stop)) ? `Night ${[stopNightDate(stop), stop.timestamp].filter(hasText).join(" · ")}` : "");
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
-const segmentDate = (segment: ItinerarySegment) => segment.day || segment.dateRange || segment.date || "";
+const segmentDate = (segment: ItinerarySegment) => segment.day || "";
 const segmentKey = (segment?: ItinerarySegment) =>
   [segment?.from, segment?.to, segment?.mapFrom, segment?.mapTo, segment?.mode, segment?.title].join("|");
 const countryIcon = (countryCode?: string) => {
@@ -136,10 +138,12 @@ class TravelItinerary extends LitElement {
       background: var(--page-background);
       overflow-x: clip;
       font-family:
-        "Avenir Next",
-        "Segoe UI",
+        Inter,
+        ui-sans-serif,
+        system-ui,
         -apple-system,
         BlinkMacSystemFont,
+        "Segoe UI",
         sans-serif;
     }
 
@@ -509,8 +513,8 @@ class TripStop extends LitElement {
       border: 1px solid rgba(23, 27, 34, 0.12);
       border-radius: 8px;
       display: grid;
-      grid-template-columns: 36px minmax(0, 1fr);
-      gap: 14px;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 12px;
       align-items: start;
       padding: 14px;
       background: rgba(255, 255, 255, 0.68);
@@ -625,6 +629,14 @@ class TripStop extends LitElement {
       font-weight: 700;
     }
 
+    .transfer-day {
+      color: #006c67;
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
     .country {
       display: inline-block;
       flex: 0 0 auto;
@@ -661,8 +673,8 @@ class TripStop extends LitElement {
 
     @media (max-width: 520px) {
       button {
-        grid-template-columns: 34px minmax(0, 1fr);
-        gap: 12px;
+        grid-template-columns: 62px minmax(0, 1fr);
+        gap: 10px;
         padding: 14px;
       }
 
@@ -712,6 +724,7 @@ class TripStop extends LitElement {
     const transfer = this.transfer || this.stop.kind === "transfer";
     const markerIcon = this.stop.marker === "start" ? libraryIcon(mdiFlagTriangle) : nothing;
     const showFlag = !transfer && hasText(flag);
+    const showTransferDay = transfer && hasText(this.stop.day);
     const showBadge = !transfer && (this.index > 0 || this.stop.marker === "start");
     const showNight = !transfer && hasText(nightLabel);
     const showDescription = !transfer && hasText(this.stop.description);
@@ -727,6 +740,7 @@ class TripStop extends LitElement {
         <span class="content">
           <span class="heading">
             <h2>${this.stop.title}</h2>
+            ${showTransferDay ? html`<span class="transfer-day">${this.stop.day}</span>` : nothing}
             ${showFlag ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
           </span>
           ${showNight ? html`<span class="night">${nightLabel}</span>` : nothing}
@@ -757,13 +771,14 @@ class TripSegment extends LitElement {
       border: 0;
       display: grid;
       grid-template-columns: 64px minmax(0, 1fr);
-      gap: 12px;
+      gap: 26px;
       padding: 4px 0;
       color: #52605f;
       align-items: stretch;
       background: transparent;
       text-align: left;
       cursor: pointer;
+      user-select: none;
       transition:
         transform 160ms ease,
         box-shadow 160ms ease,
@@ -924,6 +939,54 @@ class TripSegment extends LitElement {
       overflow-wrap: anywhere;
     }
 
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 2px;
+    }
+
+    .route-link {
+      width: fit-content;
+      border: 1px solid rgba(0, 108, 103, 0.2);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px 3px 5px;
+      background: rgba(255, 255, 255, 0.58);
+      color: #006c67;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      text-decoration: none;
+      transition:
+        border-color 160ms ease,
+        background-color 160ms ease,
+        transform 160ms ease;
+    }
+
+    .route-link:hover,
+    .route-link:focus-visible {
+      border-color: rgba(0, 108, 103, 0.42);
+      background: rgba(255, 255, 255, 0.86);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .komoot-icon {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      background: #7bbf32;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
     @media (max-width: 520px) {
       :host {
         padding: 5px 0 7px;
@@ -931,7 +994,7 @@ class TripSegment extends LitElement {
 
       .segment {
         grid-template-columns: 62px minmax(0, 1fr);
-        gap: 10px;
+        gap: 24px;
         padding: 4px 0;
       }
 
@@ -991,19 +1054,42 @@ class TripSegment extends LitElement {
     this.#emit("segment-hover");
   }
 
+  #keydown(event: KeyboardEvent) {
+    const target = event.target as Element | null;
+    if (target?.closest("a")) {
+      return;
+    }
+
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    this.#select();
+  }
+
   render() {
     const segment = this.segment || {};
     const date = segmentDate(segment);
     const facts = [segment.duration].filter(hasText);
     const icon = modeIcon(segment.mode);
     const distance = hasText(segment.distance) ? segment.distance : "";
+    const routeUrl = hasText(segment.routeUrl) ? segment.routeUrl : "";
 
-    if (!hasText(segment.title) && !hasText(segment.description) && !hasText(date) && facts.length === 0 && !hasText(distance)) {
+    if (!hasText(segment.title) && !hasText(segment.description) && !hasText(date) && facts.length === 0 && !hasText(distance) && !hasText(routeUrl)) {
       return nothing;
     }
 
     return html`
-      <button class="segment" type="button" @click=${this.#select} @pointerenter=${this.#hover} @pointerleave=${this.#leave}>
+      <article
+        class="segment"
+        role="button"
+        tabindex="0"
+        @click=${this.#select}
+        @keydown=${this.#keydown}
+        @pointerenter=${this.#hover}
+        @pointerleave=${this.#leave}
+      >
         <span class="rail">
           <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
           ${hasText(date) ? html`<span class="rail-date">${date}</span>` : nothing}
@@ -1017,8 +1103,16 @@ class TripSegment extends LitElement {
             : nothing}
           ${facts.length ? html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>` : nothing}
           ${hasText(segment.description) ? html`<p>${segment.description}</p>` : nothing}
+          ${hasText(routeUrl)
+            ? html`<span class="actions">
+                <a class="route-link" href=${routeUrl} target="_blank" rel="noopener noreferrer" @click=${(event: Event) => event.stopPropagation()}>
+                  <span class="komoot-icon" aria-hidden="true">k</span>
+                  <span>Open in komoot</span>
+                </a>
+              </span>`
+            : nothing}
         </span>
-      </button>
+      </article>
     `;
   }
 }
@@ -1158,10 +1252,12 @@ class TripMap extends LitElement {
 
       .leaflet-container {
         font-family:
-          "Avenir Next",
-          "Segoe UI",
+          Inter,
+          ui-sans-serif,
+          system-ui,
           -apple-system,
           BlinkMacSystemFont,
+          "Segoe UI",
           sans-serif;
         background: #d9eeed;
       }
