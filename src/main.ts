@@ -17,6 +17,7 @@ interface ItineraryStop {
   kind?: "transfer";
   marker?: "finish" | "start";
   day?: string;
+  dateLabel?: string;
   night?: string;
   nightRange?: string;
   stay?: string;
@@ -35,6 +36,7 @@ interface ItinerarySegment {
   mapTo?: string;
   mode?: TravelMode;
   day?: string;
+  dateLabel?: string;
   date?: string;
   dateRange?: string;
   title?: string;
@@ -70,7 +72,10 @@ const stopNightDate = (stop: ItineraryStop) => stop.nightRange || stop.night || 
 const stopNightLabel = (stop: ItineraryStop) =>
   stop.stay || stop.arrival || (hasText(stopNightDate(stop)) ? `Night ${[stopNightDate(stop), stop.timestamp].filter(hasText).join(" · ")}` : "");
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
-const segmentDate = (segment: ItinerarySegment) => segment.day || "";
+const splitRailDate = (label?: string) => {
+  const [weekday = "", dateLabel = ""] = hasText(label) ? label.split(/\s+(.+)/) : [];
+  return { weekday, dateLabel };
+};
 const segmentKey = (segment?: ItinerarySegment) =>
   [segment?.from, segment?.to, segment?.mapFrom, segment?.mapTo, segment?.mode, segment?.title].join("|");
 const countryIcon = (countryCode?: string) => {
@@ -555,27 +560,6 @@ class TripStop extends LitElement {
       text-align: left;
       box-shadow: 0 8px 22px rgba(23, 27, 34, 0.05);
       cursor: pointer;
-      transition:
-        border-color 160ms ease,
-        box-shadow 160ms ease,
-        transform 160ms ease;
-    }
-
-    button:hover,
-    button:focus-visible,
-    :host([selected]) button {
-      border-color: rgba(0, 108, 103, 0.42);
-      box-shadow: 0 14px 30px rgba(23, 27, 34, 0.1);
-      outline: none;
-      transform: translateY(-1px);
-      background: rgba(255, 255, 255, 0.86);
-    }
-
-    :host([selected]) .index,
-    button:hover .index,
-    button:focus-visible .index {
-      transform: scale(1.1);
-      box-shadow: 0 6px 14px rgba(0, 108, 103, 0.18);
     }
 
     button.transfer {
@@ -593,16 +577,6 @@ class TripStop extends LitElement {
       padding-left: 64px;
     }
 
-    button.transfer:hover,
-    button.transfer:focus-visible,
-    :host([selected]) button.transfer {
-      border-color: transparent;
-      box-shadow: none;
-      outline: none;
-      transform: none;
-      background: transparent;
-    }
-
     .index {
       width: 36px;
       height: 36px;
@@ -614,10 +588,6 @@ class TripStop extends LitElement {
       font-weight: 850;
       font-size: 12px;
       line-height: 1;
-      transition:
-        transform 160ms ease,
-        box-shadow 160ms ease,
-        background-color 160ms ease;
     }
 
     .index svg {
@@ -665,12 +635,24 @@ class TripStop extends LitElement {
     .transfer-day {
       align-self: center;
       justify-self: center;
-      color: #006c67;
-      font-size: 12px;
-      font-weight: 850;
+      display: grid;
+      gap: 3px;
+      justify-items: center;
+      color: rgba(82, 96, 95, 0.62);
+      font-size: 10px;
+      font-weight: 680;
       line-height: 1.1;
       text-align: center;
       white-space: nowrap;
+    }
+
+    .transfer-day .date-part {
+      padding: 1px 4px;
+      background: #f3f7f5;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 620;
+      color: rgba(82, 96, 95, 0.6);
     }
 
     .country {
@@ -758,6 +740,7 @@ class TripStop extends LitElement {
     const flag = countryIcon(this.stop.countryCode);
     const countryName = hasText(this.stop.countryCode) ? countryNames[this.stop.countryCode.toUpperCase()] : undefined;
     const transfer = this.transfer;
+    const transferDate = splitRailDate(this.stop.dateLabel);
     const markerLabel = markerTitle(this.stop.marker);
     const showFlag = !transfer && hasText(flag);
     const showTransferDay = transfer && hasText(this.stop.day);
@@ -768,7 +751,13 @@ class TripStop extends LitElement {
 
     return html`
       <button class=${buttonClass} type="button" @click=${this.#select} @pointerenter=${this.#hover}>
-        ${showTransferDay ? html`<span class="transfer-day">${this.stop.day}</span>` : nothing}
+        ${showTransferDay
+          ? html`<span class="transfer-day">
+              <span>${this.stop.day}</span>
+              ${hasText(transferDate.weekday) ? html`<span class="date-part">${transferDate.weekday}</span>` : nothing}
+              ${hasText(transferDate.dateLabel) ? html`<span class="date-part">${transferDate.dateLabel}</span>` : nothing}
+            </span>`
+          : nothing}
         ${showBadge
           ? html`<span class="index" title=${hasText(markerLabel) ? markerLabel : `Night ${this.index}`}>
               ${hasText(markerLabel) ? markerIcon(this.stop.marker) : this.index}
@@ -815,25 +804,12 @@ class TripSegment extends LitElement {
       text-align: left;
       cursor: pointer;
       user-select: none;
-      transition:
-        transform 160ms ease,
-        box-shadow 160ms ease,
-        background-color 160ms ease;
-    }
-
-    .segment:hover,
-    .segment:focus-visible,
-    :host([active]) .segment {
-      background: transparent;
-      box-shadow: none;
-      outline: none;
-      transform: none;
     }
 
     .rail {
       position: relative;
       display: grid;
-      gap: 10px;
+      gap: 6px;
       align-content: center;
       justify-items: center;
       place-items: center;
@@ -848,7 +824,6 @@ class TripSegment extends LitElement {
       transform: translateX(-50%);
       width: 0;
       border-left: 2px solid rgba(0, 108, 103, 0.24);
-      transition: border-image 160ms ease;
       border-image: repeating-linear-gradient(
           to bottom,
           currentColor 0,
@@ -858,15 +833,6 @@ class TripSegment extends LitElement {
         )
         1;
       color: rgba(0, 108, 103, 0.38);
-    }
-
-    .segment:hover .rail::before,
-    .segment:hover .rail::after,
-    .segment:focus-visible .rail::before,
-    .segment:focus-visible .rail::after,
-    :host([active]) .rail::before,
-    :host([active]) .rail::after {
-      color: rgba(212, 92, 61, 0.46);
     }
 
     .rail::before {
@@ -889,18 +855,6 @@ class TripSegment extends LitElement {
       color: #fff;
       box-shadow: 0 4px 12px rgba(212, 92, 61, 0.3);
       flex-shrink: 0;
-      transition:
-        transform 160ms ease,
-        box-shadow 160ms ease,
-        background-color 160ms ease;
-    }
-
-    .segment:hover .mode,
-    .segment:focus-visible .mode,
-    :host([active]) .mode {
-      transform: scale(1.12);
-      background: #b64528;
-      box-shadow: 0 10px 24px rgba(212, 92, 61, 0.42);
     }
 
     .mode svg {
@@ -910,16 +864,37 @@ class TripSegment extends LitElement {
       fill: currentColor;
     }
 
-    .rail-date {
+    .rail-label {
       position: relative;
       z-index: 1;
       width: 100%;
-      color: #006c67;
-      font-size: 12px;
-      font-weight: 780;
+      color: rgba(82, 96, 95, 0.62);
+      font-size: 10px;
+      font-weight: 680;
       line-height: 1.15;
       text-align: center;
       overflow-wrap: anywhere;
+    }
+
+    .rail-date {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 2px;
+      justify-items: center;
+      padding: 2px 4px;
+      background: #f3f7f5;
+      border-radius: 4px;
+      color: rgba(82, 96, 95, 0.6);
+      font-size: 10px;
+      font-weight: 620;
+      line-height: 1.1;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .rail-date span {
+      display: block;
     }
 
     .content {
@@ -952,12 +927,6 @@ class TripSegment extends LitElement {
       justify-self: end;
       text-align: right;
       white-space: nowrap;
-    }
-
-    .segment:hover .title,
-    .segment:focus-visible .title,
-    :host([active]) .title {
-      color: #171b22;
     }
 
     .facts {
@@ -996,18 +965,6 @@ class TripSegment extends LitElement {
       font-weight: 800;
       line-height: 1;
       text-decoration: none;
-      transition:
-        border-color 160ms ease,
-        background-color 160ms ease,
-        transform 160ms ease;
-    }
-
-    .route-link:hover,
-    .route-link:focus-visible {
-      border-color: rgba(0, 108, 103, 0.42);
-      background: rgba(255, 255, 255, 0.86);
-      outline: none;
-      transform: translateY(-1px);
     }
 
     .komoot-icon {
@@ -1106,13 +1063,13 @@ class TripSegment extends LitElement {
 
   render() {
     const segment = this.segment || {};
-    const date = segmentDate(segment);
+    const railDate = splitRailDate(segment.dateLabel);
     const facts = [segment.duration].filter(hasText);
     const icon = modeIcon(segment.mode);
     const distance = hasText(segment.distance) ? segment.distance : "";
     const routeUrl = hasText(segment.routeUrl) ? segment.routeUrl : "";
 
-    if (!hasText(segment.title) && !hasText(segment.description) && !hasText(date) && facts.length === 0 && !hasText(distance) && !hasText(routeUrl)) {
+    if (!hasText(segment.title) && !hasText(segment.description) && !hasText(segment.day) && facts.length === 0 && !hasText(distance) && !hasText(routeUrl)) {
       return nothing;
     }
 
@@ -1127,8 +1084,14 @@ class TripSegment extends LitElement {
         @pointerleave=${this.#leave}
       >
         <span class="rail">
+          ${hasText(segment.day) ? html`<span class="rail-label">${segment.day}</span>` : nothing}
           <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
-          ${hasText(date) ? html`<span class="rail-date">${date}</span>` : nothing}
+          ${hasText(railDate.weekday) || hasText(railDate.dateLabel)
+            ? html`<span class="rail-date">
+                ${hasText(railDate.weekday) ? html`<span>${railDate.weekday}</span>` : nothing}
+                ${hasText(railDate.dateLabel) ? html`<span>${railDate.dateLabel}</span>` : nothing}
+              </span>`
+            : nothing}
         </span>
         <span class="content">
           ${hasText(segment.title) || hasText(distance)
