@@ -1,4 +1,4 @@
-import { mdiArrowRight, mdiBike, mdiFerry, mdiFullscreen, mdiFullscreenExit, mdiTrain } from "@mdi/js";
+import { mdiArrowRight, mdiBike, mdiFerry, mdiFlagTriangle, mdiFullscreen, mdiFullscreenExit, mdiTrain } from "@mdi/js";
 import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from "leaflet";
 import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
 import leafletStyles from "leaflet/dist/leaflet.css?inline";
@@ -15,6 +15,11 @@ interface ItineraryStop {
   title: string;
   countryCode?: string;
   kind?: "transfer";
+  marker?: "start";
+  night?: string;
+  nightRange?: string;
+  stay?: string;
+  arrival?: string;
   date?: string;
   dateRange?: string;
   timestamp?: string;
@@ -28,6 +33,9 @@ interface ItinerarySegment {
   mapFrom?: string;
   mapTo?: string;
   mode?: TravelMode;
+  day?: string;
+  date?: string;
+  dateRange?: string;
   title?: string;
   duration?: string;
   distance?: string;
@@ -56,8 +64,11 @@ const countryNames: Record<string, string> = {
 
 const hasText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const hasLocation = (stop: ItineraryStop): stop is MappedStop => Number.isFinite(stop.location?.lat) && Number.isFinite(stop.location?.lng);
-const stopDate = (stop: ItineraryStop) => [stop.dateRange || stop.date, stop.timestamp].filter(hasText).join(" · ");
+const stopNightDate = (stop: ItineraryStop) => stop.nightRange || stop.night || stop.dateRange || stop.date || "";
+const stopNightLabel = (stop: ItineraryStop) =>
+  stop.stay || stop.arrival || (hasText(stopNightDate(stop)) ? `Night ${[stopNightDate(stop), stop.timestamp].filter(hasText).join(" · ")}` : "");
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
+const segmentDate = (segment: ItinerarySegment) => segment.day || segment.dateRange || segment.date || "";
 const segmentKey = (segment?: ItinerarySegment) =>
   [segment?.from, segment?.to, segment?.mapFrom, segment?.mapTo, segment?.mode, segment?.title].join("|");
 const countryIcon = (countryCode?: string) => {
@@ -78,6 +89,8 @@ const libraryIcon = (path: string) => svg`
     <path d=${path}></path>
   </svg>
 `;
+
+const markerIconHtml = (path: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"></path></svg>`;
 
 const modeIcon = (mode?: TravelMode) => {
   switch (mode) {
@@ -114,22 +127,19 @@ class TravelItinerary extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      --mobile-map-height: 25dvh;
-      --mobile-map-gap: 84px;
-      --mobile-first-stop-space: 40px;
-      --shell-inline-padding: clamp(16px, 4vw, 40px);
-      --page-background: radial-gradient(circle at 15% 12%, rgba(0, 144, 128, 0.12), transparent 28rem),
-        linear-gradient(135deg, #fbfaf7 0%, #f3f7f5 48%, #f8f4f0 100%);
+      --mobile-map-height: clamp(240px, 32dvh, 320px);
+      --shell-inline-padding: clamp(16px, 4vw, 42px);
+      --page-background: radial-gradient(circle at 12% 10%, rgba(0, 108, 103, 0.14), transparent 26rem),
+        radial-gradient(circle at 88% 28%, rgba(212, 92, 61, 0.1), transparent 24rem),
+        linear-gradient(135deg, #fbfaf7 0%, #f1f7f4 52%, #f8f3ee 100%);
       color: #171b22;
       background: var(--page-background);
       overflow-x: clip;
       font-family:
-        Inter,
-        ui-sans-serif,
-        system-ui,
+        "Avenir Next",
+        "Segoe UI",
         -apple-system,
         BlinkMacSystemFont,
-        "Segoe UI",
         sans-serif;
     }
 
@@ -138,30 +148,32 @@ class TravelItinerary extends LitElement {
     }
 
     .shell {
-      width: min(1180px, 100%);
+      width: min(1200px, 100%);
       margin: 0 auto;
-      padding: 28px var(--shell-inline-padding) 40px;
+      padding: 34px var(--shell-inline-padding) 56px;
       overflow: visible;
     }
 
     header {
       display: grid;
-      gap: 10px;
-      padding: 16px 0 28px;
+      gap: 12px;
+      padding: 18px 0 clamp(28px, 4vw, 42px);
     }
 
     h1 {
-      max-width: 780px;
+      max-width: 760px;
       margin: 0;
-      font-size: clamp(38px, 7vw, 76px);
+      font-size: clamp(40px, 7vw, 80px);
+      font-weight: 850;
       line-height: 0.98;
       letter-spacing: 0;
+      text-wrap: balance;
     }
 
     .meta,
     .summary {
       width: 100%;
-      max-width: 720px;
+      max-width: 700px;
       margin: 0;
       color: #52605f;
       font-size: clamp(15px, 2vw, 18px);
@@ -172,12 +184,13 @@ class TravelItinerary extends LitElement {
     .meta {
       color: #006c67;
       font-weight: 750;
+      letter-spacing: 0.01em;
     }
 
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
-      gap: 22px;
+      gap: clamp(22px, 3vw, 36px);
       align-items: start;
       min-width: 0;
     }
@@ -188,7 +201,7 @@ class TravelItinerary extends LitElement {
 
     trip-map {
       position: sticky;
-      top: 18px;
+      top: 24px;
       z-index: 8;
     }
 
@@ -196,11 +209,12 @@ class TravelItinerary extends LitElement {
       .shell {
         width: 100%;
         max-width: 100%;
-        padding-top: 18px;
+        padding-top: 22px;
+        padding-bottom: 42px;
       }
 
       header {
-        padding-bottom: 20px;
+        padding-bottom: 22px;
       }
 
       .layout {
@@ -216,13 +230,13 @@ class TravelItinerary extends LitElement {
         max-width: none;
         margin-left: calc(var(--shell-inline-padding) * -1);
         margin-right: calc(var(--shell-inline-padding) * -1);
-        margin-bottom: calc(var(--mobile-map-gap) - var(--mobile-map-height));
+        margin-bottom: 40px;
         border-bottom: 1px solid rgba(23, 27, 34, 0.14);
         z-index: 12;
       }
 
       trip-timeline {
-        padding-top: calc(var(--mobile-map-height) - var(--mobile-map-gap) + var(--mobile-first-stop-space));
+        padding-top: 0;
       }
     }
   `;
@@ -438,18 +452,30 @@ class TripTimeline extends LitElement {
   }
 
   render() {
+    let nightIndex = 0;
+
     return html`
       <section class="timeline" aria-label="Itinerary timeline">
         ${this.stops.map(
-          (stop, index) => html`
-            <trip-stop data-stop-id=${stop.id} .stop=${stop} .index=${index + 1} .selected=${this.selectedStopId === stop.id}></trip-stop>
-            ${index < this.stops.length - 1
-              ? html`<trip-segment
-                  .segment=${this.#segmentAfter(stop, index)}
-                  .active=${segmentKey(this.#segmentAfter(stop, index)) === this.activeSegmentKey}
-                ></trip-segment>`
-              : nothing}
-          `,
+          (stop, index) => {
+            const currentNightIndex = hasText(stopNightDate(stop)) ? ++nightIndex : 0;
+
+            return html`
+              <trip-stop
+                data-stop-id=${stop.id}
+                .stop=${stop}
+                .index=${currentNightIndex}
+                .selected=${this.selectedStopId === stop.id}
+                .transfer=${stop.kind === "transfer"}
+              ></trip-stop>
+              ${index < this.stops.length - 1
+                ? html`<trip-segment
+                    .segment=${this.#segmentAfter(stop, index)}
+                    .active=${segmentKey(this.#segmentAfter(stop, index)) === this.activeSegmentKey}
+                  ></trip-segment>`
+                : nothing}
+            `;
+          },
         )}
       </section>
     `;
@@ -461,30 +487,36 @@ class TripStop extends LitElement {
     stop: { attribute: false },
     index: { type: Number },
     selected: { type: Boolean, reflect: true },
+    transfer: { type: Boolean, reflect: true },
   };
 
   stop: ItineraryStop = { id: "", title: "" };
   index = 1;
   selected = false;
+  transfer = false;
 
   static styles = css`
     :host {
       display: block;
     }
 
+    :host([transfer]) {
+      margin: -12px 0 -10px;
+    }
+
     button {
       width: 100%;
-      border: 1px solid rgba(23, 27, 34, 0.1);
+      border: 1px solid rgba(23, 27, 34, 0.12);
       border-radius: 8px;
       display: grid;
-      grid-template-columns: 32px minmax(0, 1fr);
-      gap: 12px;
+      grid-template-columns: 36px minmax(0, 1fr);
+      gap: 14px;
       align-items: start;
-      padding: 12px;
-      background: rgba(255, 255, 255, 0.56);
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.68);
       color: inherit;
       text-align: left;
-      box-shadow: 0 6px 16px rgba(23, 27, 34, 0.04);
+      box-shadow: 0 8px 22px rgba(23, 27, 34, 0.05);
       cursor: pointer;
       transition:
         border-color 160ms ease,
@@ -496,10 +528,10 @@ class TripStop extends LitElement {
     button:focus-visible,
     :host([selected]) button {
       border-color: rgba(0, 108, 103, 0.42);
-      box-shadow: 0 10px 24px rgba(23, 27, 34, 0.08);
+      box-shadow: 0 14px 30px rgba(23, 27, 34, 0.1);
       outline: none;
       transform: translateY(-1px);
-      background: rgba(255, 255, 255, 0.74);
+      background: rgba(255, 255, 255, 0.86);
     }
 
     :host([selected]) .index,
@@ -512,11 +544,16 @@ class TripStop extends LitElement {
     button.transfer {
       grid-template-columns: minmax(0, 1fr);
       gap: 0;
-      padding: 0 16px;
+      padding: 0 0 0 76px;
       background: transparent;
       border-color: transparent;
       border-radius: 0;
       box-shadow: none;
+    }
+
+    button.no-badge {
+      grid-template-columns: minmax(0, 1fr);
+      padding-left: 64px;
     }
 
     button.transfer:hover,
@@ -530,8 +567,8 @@ class TripStop extends LitElement {
     }
 
     .index {
-      width: 32px;
-      height: 32px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       display: grid;
       place-items: center;
@@ -546,11 +583,18 @@ class TripStop extends LitElement {
         background-color 160ms ease;
     }
 
+    .index svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+      fill: currentColor;
+    }
+
     .content {
       min-width: 0;
       display: grid;
-      gap: 7px;
-      padding-top: 2px;
+      gap: 8px;
+      padding-top: 1px;
     }
 
     button.transfer .content {
@@ -568,9 +612,11 @@ class TripStop extends LitElement {
 
     h2 {
       margin: 0;
-      font-size: clamp(18px, 3vw, 23px);
+      font-size: clamp(19px, 3vw, 24px);
+      font-weight: 850;
       line-height: 1.1;
       letter-spacing: 0;
+      overflow-wrap: anywhere;
     }
 
     button.transfer h2 {
@@ -586,14 +632,14 @@ class TripStop extends LitElement {
       line-height: 1;
     }
 
-    .date {
+    .night {
       color: #006c67;
       font-size: 12px;
       font-weight: 760;
-      line-height: 1.35;
+      line-height: 1.3;
     }
 
-    button.transfer .date {
+    button.transfer .night {
       color: #52605f;
       font-size: 11px;
       letter-spacing: 0.04em;
@@ -604,7 +650,7 @@ class TripStop extends LitElement {
       margin: 0;
       color: #52605f;
       font-size: 13px;
-      line-height: 1.45;
+      line-height: 1.5;
       overflow-wrap: anywhere;
     }
 
@@ -623,7 +669,12 @@ class TripStop extends LitElement {
       button.transfer {
         grid-template-columns: minmax(0, 1fr);
         gap: 0;
-        padding: 0 14px;
+        padding: 0 0 0 72px;
+      }
+
+      button.no-badge {
+        grid-template-columns: minmax(0, 1fr);
+        padding-left: 60px;
       }
 
       .index {
@@ -655,23 +706,30 @@ class TripStop extends LitElement {
   }
 
   render() {
-    const date = stopDate(this.stop);
+    const nightLabel = stopNightLabel(this.stop);
     const flag = countryIcon(this.stop.countryCode);
     const countryName = hasText(this.stop.countryCode) ? countryNames[this.stop.countryCode.toUpperCase()] : undefined;
-    const transfer = this.stop.kind === "transfer";
+    const transfer = this.transfer || this.stop.kind === "transfer";
+    const markerIcon = this.stop.marker === "start" ? libraryIcon(mdiFlagTriangle) : nothing;
     const showFlag = !transfer && hasText(flag);
-    const showDate = !transfer && hasText(date);
+    const showBadge = !transfer && (this.index > 0 || this.stop.marker === "start");
+    const showNight = !transfer && hasText(nightLabel);
     const showDescription = !transfer && hasText(this.stop.description);
+    const buttonClass = transfer ? "transfer" : showBadge ? nothing : "no-badge";
 
     return html`
-      <button class=${transfer ? "transfer" : nothing} type="button" @click=${this.#select} @pointerenter=${this.#hover}>
-        ${transfer ? nothing : html`<span class="index">${this.index}</span>`}
+      <button class=${buttonClass} type="button" @click=${this.#select} @pointerenter=${this.#hover}>
+        ${showBadge
+          ? html`<span class="index" title=${this.stop.marker === "start" ? "Start" : `Night ${this.index}`}>
+              ${this.stop.marker === "start" ? markerIcon : this.index}
+            </span>`
+          : nothing}
         <span class="content">
           <span class="heading">
             <h2>${this.stop.title}</h2>
             ${showFlag ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
           </span>
-          ${showDate ? html`<span class="date">${date}</span>` : nothing}
+          ${showNight ? html`<span class="night">${nightLabel}</span>` : nothing}
           ${showDescription ? html`<p>${this.stop.description}</p>` : nothing}
         </span>
       </button>
@@ -691,15 +749,15 @@ class TripSegment extends LitElement {
   static styles = css`
     :host {
       display: block;
-      padding: 0 16px;
+      padding: 6px 0 8px;
     }
 
     .segment {
       width: 100%;
       border: 0;
       display: grid;
-      grid-template-columns: 76px minmax(0, 1fr);
-      gap: 16px;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 12px;
       padding: 4px 0;
       color: #52605f;
       align-items: stretch;
@@ -724,7 +782,7 @@ class TripSegment extends LitElement {
     .rail {
       position: relative;
       display: grid;
-      gap: 7px;
+      gap: 10px;
       align-content: center;
       justify-items: center;
       place-items: center;
@@ -738,8 +796,17 @@ class TripSegment extends LitElement {
       left: 50%;
       transform: translateX(-50%);
       width: 0;
-      border-left: 2px dashed rgba(0, 108, 103, 0.42);
-      transition: border-color 160ms ease;
+      border-left: 2px solid rgba(0, 108, 103, 0.24);
+      transition: border-image 160ms ease;
+      border-image: repeating-linear-gradient(
+          to bottom,
+          currentColor 0,
+          currentColor 9px,
+          transparent 9px,
+          transparent 15px
+        )
+        1;
+      color: rgba(0, 108, 103, 0.38);
     }
 
     .segment:hover .rail::before,
@@ -748,7 +815,7 @@ class TripSegment extends LitElement {
     .segment:focus-visible .rail::after,
     :host([active]) .rail::before,
     :host([active]) .rail::after {
-      border-left-color: rgba(212, 92, 61, 0.52);
+      color: rgba(212, 92, 61, 0.46);
     }
 
     .rail::before {
@@ -792,13 +859,13 @@ class TripSegment extends LitElement {
       fill: currentColor;
     }
 
-    .distance {
+    .rail-date {
       position: relative;
       z-index: 1;
       width: 100%;
-      color: #171b22;
-      font-size: 13px;
-      font-weight: 850;
+      color: #006c67;
+      font-size: 12px;
+      font-weight: 780;
       line-height: 1.15;
       text-align: center;
       overflow-wrap: anywhere;
@@ -806,16 +873,34 @@ class TripSegment extends LitElement {
 
     .content {
       display: grid;
-      gap: 5px;
+      gap: 8px;
       min-width: 0;
-      padding: 16px 0;
+      padding: 18px 0 22px;
+    }
+
+    .segment-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
     }
 
     .title {
       color: #283330;
       font-size: 14px;
-      font-weight: 760;
+      font-weight: 800;
       line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .distance {
+      color: #171b22;
+      font-size: 13px;
+      font-weight: 850;
+      line-height: 1.25;
+      justify-self: end;
+      text-align: right;
+      white-space: nowrap;
     }
 
     .segment:hover .title,
@@ -835,18 +920,19 @@ class TripSegment extends LitElement {
     p {
       margin: 0;
       font-size: 13px;
-      line-height: 1.5;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
     }
 
     @media (max-width: 520px) {
       :host {
-        padding: 0 14px;
+        padding: 5px 0 7px;
       }
 
       .segment {
-        grid-template-columns: 64px minmax(0, 1fr);
-        gap: 12px;
-        padding: 3px 0;
+        grid-template-columns: 62px minmax(0, 1fr);
+        gap: 10px;
+        padding: 4px 0;
       }
 
       .rail::before {
@@ -858,7 +944,17 @@ class TripSegment extends LitElement {
       }
 
       .content {
-        padding: 12px 0;
+        padding: 16px 0 18px;
+      }
+
+      .segment-head {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+      }
+
+      .distance {
+        justify-self: start;
+        text-align: left;
       }
 
       .mode {
@@ -897,11 +993,12 @@ class TripSegment extends LitElement {
 
   render() {
     const segment = this.segment || {};
+    const date = segmentDate(segment);
     const facts = [segment.duration].filter(hasText);
     const icon = modeIcon(segment.mode);
     const distance = hasText(segment.distance) ? segment.distance : "";
 
-    if (!hasText(segment.title) && !hasText(segment.description) && facts.length === 0 && !hasText(distance)) {
+    if (!hasText(segment.title) && !hasText(segment.description) && !hasText(date) && facts.length === 0 && !hasText(distance)) {
       return nothing;
     }
 
@@ -909,10 +1006,15 @@ class TripSegment extends LitElement {
       <button class="segment" type="button" @click=${this.#select} @pointerenter=${this.#hover} @pointerleave=${this.#leave}>
         <span class="rail">
           <span class="mode" title=${hasText(segment.mode) ? segment.mode : "travel"}>${icon}</span>
-          ${hasText(distance) ? html`<span class="distance">${distance}</span>` : nothing}
+          ${hasText(date) ? html`<span class="rail-date">${date}</span>` : nothing}
         </span>
         <span class="content">
-          ${hasText(segment.title) ? html`<span class="title">${segment.title}</span>` : nothing}
+          ${hasText(segment.title) || hasText(distance)
+            ? html`<span class="segment-head">
+                ${hasText(segment.title) ? html`<span class="title">${segment.title}</span>` : html`<span></span>`}
+                ${hasText(distance) ? html`<span class="distance">${distance}</span>` : nothing}
+              </span>`
+            : nothing}
           ${facts.length ? html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>` : nothing}
           ${hasText(segment.description) ? html`<p>${segment.description}</p>` : nothing}
         </span>
@@ -990,7 +1092,7 @@ class TripMap extends LitElement {
         border: 1px solid rgba(23, 27, 34, 0.12);
         border-radius: 8px;
         overflow: hidden;
-        box-shadow: 0 18px 42px rgba(23, 27, 34, 0.12);
+        box-shadow: 0 22px 48px rgba(23, 27, 34, 0.14);
       }
 
       .frame:fullscreen .map {
@@ -1056,12 +1158,10 @@ class TripMap extends LitElement {
 
       .leaflet-container {
         font-family:
-          Inter,
-          ui-sans-serif,
-          system-ui,
+          "Avenir Next",
+          "Segoe UI",
           -apple-system,
           BlinkMacSystemFont,
-          "Segoe UI",
           sans-serif;
         background: #d9eeed;
       }
@@ -1101,6 +1201,19 @@ class TripMap extends LitElement {
         color: #fff;
         transform: scale(1.28);
         box-shadow: 0 14px 32px rgba(212, 92, 61, 0.34);
+      }
+
+      .map-stop-marker.empty {
+        width: 16px;
+        height: 16px;
+        font-size: 0;
+      }
+
+      .map-stop-marker svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+        fill: currentColor;
       }
 
       @media (max-width: 860px) {
@@ -1298,7 +1411,7 @@ class TripMap extends LitElement {
     }
 
     const renderKey = JSON.stringify({
-      stops: mappedStops.map((stop) => [stop.id, stop.location.lat, stop.location.lng]),
+      stops: mappedStops.map((stop) => [stop.id, stop.marker, stopNightDate(stop), stop.location.lat, stop.location.lng]),
       segments: this.segments.map((segment) => [segment.from, segment.to, segment.mapFrom, segment.mapTo, segment.mode, segment.title]),
     });
 
@@ -1339,18 +1452,24 @@ class TripMap extends LitElement {
       }
     }
 
-    mappedStops.forEach((stop, index) => {
+    let nightIndex = 0;
+
+    mappedStops.forEach((stop) => {
       const selected = stop.id === this.selectedStopId;
+      const currentNightIndex = hasText(stopNightDate(stop)) ? ++nightIndex : 0;
+      const label = stop.marker === "start" ? markerIconHtml(mdiFlagTriangle) : currentNightIndex ? String(currentNightIndex) : "";
+      const labelClass = label ? "" : " empty";
+      const tooltipPrefix = stop.marker === "start" ? "Start" : currentNightIndex ? `Night ${currentNightIndex}` : "Stop";
       const marker = L.marker(stopLatLng(stop), {
         icon: L.divIcon({
           className: "",
-          html: `<span class="map-stop-marker${selected ? " selected" : ""}">${index + 1}</span>`,
+          html: `<span class="map-stop-marker${selected ? " selected" : ""}${labelClass}">${label}</span>`,
           iconAnchor: [13, 13],
         }),
       });
 
       marker
-        .bindTooltip(`${index + 1}. ${stop.title}`, {
+        .bindTooltip(`${tooltipPrefix}. ${stop.title}`, {
           direction: "top",
           offset: [0, -8],
         })
