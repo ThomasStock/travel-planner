@@ -1,4 +1,4 @@
-import { mdiArrowRight, mdiBike, mdiFerry, mdiFlagTriangle, mdiFullscreen, mdiFullscreenExit, mdiTrain } from "@mdi/js";
+import { mdiArrowRight, mdiBike, mdiFerry, mdiFlagCheckered, mdiFlagTriangle, mdiFullscreen, mdiFullscreenExit, mdiTrain } from "@mdi/js";
 import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from "leaflet";
 import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
 import leafletStyles from "leaflet/dist/leaflet.css?inline";
@@ -15,7 +15,7 @@ interface ItineraryStop {
   title: string;
   countryCode?: string;
   kind?: "transfer";
-  marker?: "start";
+  marker?: "finish" | "start";
   day?: string;
   night?: string;
   nightRange?: string;
@@ -93,6 +93,39 @@ const libraryIcon = (path: string) => svg`
 `;
 
 const markerIconHtml = (path: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"></path></svg>`;
+
+const markerIcon = (marker?: ItineraryStop["marker"]) => {
+  switch (marker) {
+    case "finish":
+      return libraryIcon(mdiFlagCheckered);
+    case "start":
+      return libraryIcon(mdiFlagTriangle);
+    default:
+      return nothing;
+  }
+};
+
+const markerIconMarkup = (marker?: ItineraryStop["marker"]) => {
+  switch (marker) {
+    case "finish":
+      return markerIconHtml(mdiFlagCheckered);
+    case "start":
+      return markerIconHtml(mdiFlagTriangle);
+    default:
+      return "";
+  }
+};
+
+const markerTitle = (marker?: ItineraryStop["marker"]) => {
+  switch (marker) {
+    case "finish":
+      return "Finish";
+    case "start":
+      return "Start";
+    default:
+      return "";
+  }
+};
 
 const modeIcon = (mode?: TravelMode) => {
   switch (mode) {
@@ -470,7 +503,7 @@ class TripTimeline extends LitElement {
                 .stop=${stop}
                 .index=${currentNightIndex}
                 .selected=${this.selectedStopId === stop.id}
-                .transfer=${stop.kind === "transfer"}
+                .transfer=${stop.kind === "transfer" && hasText(stop.day)}
               ></trip-stop>
               ${index < this.stops.length - 1
                 ? html`<trip-segment
@@ -505,7 +538,7 @@ class TripStop extends LitElement {
     }
 
     :host([transfer]) {
-      margin: -12px 0 -10px;
+      margin: -6px 0 -4px;
     }
 
     button {
@@ -546,9 +579,9 @@ class TripStop extends LitElement {
     }
 
     button.transfer {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 0;
-      padding: 0 0 0 76px;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 26px;
+      padding: 6px 0;
       background: transparent;
       border-color: transparent;
       border-radius: 0;
@@ -630,10 +663,13 @@ class TripStop extends LitElement {
     }
 
     .transfer-day {
+      align-self: center;
+      justify-self: center;
       color: #006c67;
       font-size: 12px;
       font-weight: 850;
       line-height: 1.1;
+      text-align: center;
       white-space: nowrap;
     }
 
@@ -679,9 +715,9 @@ class TripStop extends LitElement {
       }
 
       button.transfer {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 0;
-        padding: 0 0 0 72px;
+        grid-template-columns: 62px minmax(0, 1fr);
+        gap: 24px;
+        padding: 5px 0;
       }
 
       button.no-badge {
@@ -721,26 +757,26 @@ class TripStop extends LitElement {
     const nightLabel = stopNightLabel(this.stop);
     const flag = countryIcon(this.stop.countryCode);
     const countryName = hasText(this.stop.countryCode) ? countryNames[this.stop.countryCode.toUpperCase()] : undefined;
-    const transfer = this.transfer || this.stop.kind === "transfer";
-    const markerIcon = this.stop.marker === "start" ? libraryIcon(mdiFlagTriangle) : nothing;
+    const transfer = this.transfer;
+    const markerLabel = markerTitle(this.stop.marker);
     const showFlag = !transfer && hasText(flag);
     const showTransferDay = transfer && hasText(this.stop.day);
-    const showBadge = !transfer && (this.index > 0 || this.stop.marker === "start");
+    const showBadge = !transfer && (this.index > 0 || hasText(markerLabel));
     const showNight = !transfer && hasText(nightLabel);
     const showDescription = !transfer && hasText(this.stop.description);
     const buttonClass = transfer ? "transfer" : showBadge ? nothing : "no-badge";
 
     return html`
       <button class=${buttonClass} type="button" @click=${this.#select} @pointerenter=${this.#hover}>
+        ${showTransferDay ? html`<span class="transfer-day">${this.stop.day}</span>` : nothing}
         ${showBadge
-          ? html`<span class="index" title=${this.stop.marker === "start" ? "Start" : `Night ${this.index}`}>
-              ${this.stop.marker === "start" ? markerIcon : this.index}
+          ? html`<span class="index" title=${hasText(markerLabel) ? markerLabel : `Night ${this.index}`}>
+              ${hasText(markerLabel) ? markerIcon(this.stop.marker) : this.index}
             </span>`
           : nothing}
         <span class="content">
           <span class="heading">
             <h2>${this.stop.title}</h2>
-            ${showTransferDay ? html`<span class="transfer-day">${this.stop.day}</span>` : nothing}
             ${showFlag ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
           </span>
           ${showNight ? html`<span class="night">${nightLabel}</span>` : nothing}
@@ -1553,9 +1589,10 @@ class TripMap extends LitElement {
     mappedStops.forEach((stop) => {
       const selected = stop.id === this.selectedStopId;
       const currentNightIndex = hasText(stopNightDate(stop)) ? ++nightIndex : 0;
-      const label = stop.marker === "start" ? markerIconHtml(mdiFlagTriangle) : currentNightIndex ? String(currentNightIndex) : "";
+      const markerLabel = markerTitle(stop.marker);
+      const label = markerIconMarkup(stop.marker) || (currentNightIndex ? String(currentNightIndex) : "");
       const labelClass = label ? "" : " empty";
-      const tooltipPrefix = stop.marker === "start" ? "Start" : currentNightIndex ? `Night ${currentNightIndex}` : "Stop";
+      const tooltipPrefix = markerLabel || (currentNightIndex ? `Night ${currentNightIndex}` : "Stop");
       const marker = L.marker(stopLatLng(stop), {
         icon: L.divIcon({
           className: "",
