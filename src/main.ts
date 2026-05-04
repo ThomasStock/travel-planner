@@ -342,7 +342,7 @@ class TripTimeline extends LitElement {
     .timeline {
       position: relative;
       display: grid;
-      gap: 4px;
+      gap: 2px;
     }
   `;
 
@@ -474,17 +474,17 @@ class TripStop extends LitElement {
 
     button {
       width: 100%;
-      border: 1px solid color-mix(in srgb, #006c67 24%, transparent);
+      border: 1px solid rgba(23, 27, 34, 0.1);
       border-radius: 8px;
       display: grid;
-      grid-template-columns: 40px minmax(0, 1fr);
-      gap: 16px;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 12px;
       align-items: start;
-      padding: 16px;
-      background: rgba(255, 255, 255, 0.76);
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.56);
       color: inherit;
       text-align: left;
-      box-shadow: 0 14px 34px rgba(23, 27, 34, 0.08);
+      box-shadow: 0 6px 16px rgba(23, 27, 34, 0.04);
       cursor: pointer;
       transition:
         border-color 160ms ease,
@@ -495,18 +495,18 @@ class TripStop extends LitElement {
     button:hover,
     button:focus-visible,
     :host([selected]) button {
-      border-color: #d45c3d;
-      box-shadow: 0 24px 54px rgba(23, 27, 34, 0.18);
+      border-color: rgba(0, 108, 103, 0.42);
+      box-shadow: 0 10px 24px rgba(23, 27, 34, 0.08);
       outline: none;
-      transform: translateY(-2px) scale(1.01);
-      background: rgba(255, 255, 255, 0.94);
+      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.74);
     }
 
     :host([selected]) .index,
     button:hover .index,
     button:focus-visible .index {
       transform: scale(1.1);
-      box-shadow: 0 8px 20px rgba(0, 108, 103, 0.24);
+      box-shadow: 0 6px 14px rgba(0, 108, 103, 0.18);
     }
 
     button.transfer {
@@ -530,15 +530,15 @@ class TripStop extends LitElement {
     }
 
     .index {
-      width: 40px;
-      height: 40px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       display: grid;
       place-items: center;
       background: #006c67;
       color: #fff;
       font-weight: 850;
-      font-size: 14px;
+      font-size: 12px;
       line-height: 1;
       transition:
         transform 160ms ease,
@@ -568,7 +568,7 @@ class TripStop extends LitElement {
 
     h2 {
       margin: 0;
-      font-size: clamp(22px, 4vw, 30px);
+      font-size: clamp(18px, 3vw, 23px);
       line-height: 1.1;
       letter-spacing: 0;
     }
@@ -582,13 +582,13 @@ class TripStop extends LitElement {
     .country {
       display: inline-block;
       flex: 0 0 auto;
-      font-size: 21px;
+      font-size: 18px;
       line-height: 1;
     }
 
     .date {
       color: #006c67;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 760;
       line-height: 1.35;
     }
@@ -603,8 +603,8 @@ class TripStop extends LitElement {
     p {
       margin: 0;
       color: #52605f;
-      font-size: 15px;
-      line-height: 1.55;
+      font-size: 13px;
+      line-height: 1.45;
       overflow-wrap: anywhere;
     }
 
@@ -700,7 +700,7 @@ class TripSegment extends LitElement {
       display: grid;
       grid-template-columns: 76px minmax(0, 1fr);
       gap: 16px;
-      padding: 6px 0;
+      padding: 4px 0;
       color: #52605f;
       align-items: stretch;
       background: transparent;
@@ -753,11 +753,11 @@ class TripSegment extends LitElement {
 
     .rail::before {
       top: 0;
-      bottom: calc(50% + 42px);
+      bottom: calc(50% + 40px);
     }
 
     .rail::after {
-      top: calc(50% + 42px);
+      top: calc(50% + 40px);
       bottom: 0;
     }
 
@@ -808,7 +808,7 @@ class TripSegment extends LitElement {
       display: grid;
       gap: 5px;
       min-width: 0;
-      padding-top: 2px;
+      padding: 16px 0;
     }
 
     .title {
@@ -846,14 +846,19 @@ class TripSegment extends LitElement {
       .segment {
         grid-template-columns: 64px minmax(0, 1fr);
         gap: 12px;
+        padding: 3px 0;
       }
 
       .rail::before {
-        bottom: calc(50% + 38px);
+        bottom: calc(50% + 36px);
       }
 
       .rail::after {
-        top: calc(50% + 38px);
+        top: calc(50% + 36px);
+      }
+
+      .content {
+        padding: 12px 0;
       }
 
       .mode {
