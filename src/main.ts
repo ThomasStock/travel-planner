@@ -837,11 +837,11 @@ class TripSegment extends LitElement {
 
     .rail::before {
       top: 0;
-      bottom: calc(50% + 40px);
+      bottom: calc(50% + 58px);
     }
 
     .rail::after {
-      top: calc(50% + 40px);
+      top: calc(50% + 58px);
       bottom: 0;
     }
 
@@ -992,11 +992,11 @@ class TripSegment extends LitElement {
       }
 
       .rail::before {
-        bottom: calc(50% + 36px);
+        bottom: calc(50% + 52px);
       }
 
       .rail::after {
-        top: calc(50% + 36px);
+        top: calc(50% + 52px);
       }
 
       .content {
