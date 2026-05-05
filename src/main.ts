@@ -1,4 +1,14 @@
-import { mdiArrowRight, mdiBike, mdiFerry, mdiFlagCheckered, mdiFlagTriangle, mdiFullscreen, mdiFullscreenExit, mdiSleep, mdiTrain } from "@mdi/js";
+import {
+  mdiArrowRight,
+  mdiBike,
+  mdiFerry,
+  mdiFlagCheckered,
+  mdiFlagTriangle,
+  mdiFullscreen,
+  mdiFullscreenExit,
+  mdiSleep,
+  mdiTrain,
+} from "@mdi/js";
 import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from "leaflet";
 import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
 import leafletStyles from "leaflet/dist/leaflet.css?inline";
@@ -75,7 +85,8 @@ const stopNightLabel = (stop: ItineraryStop) =>
   stop.departure ||
   stop.arrival ||
   (hasText(stopNightDate(stop)) ? `Night ${[stopNightDate(stop), stop.timestamp].filter(hasText).join(" · ")}` : "");
-const stopShowsSleepIcon = (stop: ItineraryStop) => hasText(stop.stay) || (!hasText(stop.departure) && !hasText(stop.arrival) && hasText(stopNightDate(stop)));
+const stopShowsSleepIcon = (stop: ItineraryStop) =>
+  hasText(stop.stay) || (!hasText(stop.departure) && !hasText(stop.arrival) && hasText(stopNightDate(stop)));
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
 const splitRailDate = (label?: string) => {
   const [weekday = "", dateLabel = ""] = hasText(label) ? label.split(/\s+(.+)/) : [];
@@ -94,6 +105,76 @@ const monthNumbers: Record<string, number> = {
   october: 9,
   november: 10,
   december: 11,
+};
+const dayInMs = 86_400_000;
+const parseTripYear = (value?: string) => {
+  if (!hasText(value)) {
+    return undefined;
+  }
+
+  const match = value.match(/(\d{4})(?!.*\d)/);
+
+  return match ? Number(match[1]) : undefined;
+};
+const parseMonthDay = (value?: string) => {
+  if (!hasText(value)) {
+    return undefined;
+  }
+
+  const match = value.match(
+    /(?:^|\b)(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?!\d)/i,
+  );
+
+  if (!match) {
+    return undefined;
+  }
+
+  const [, monthName, dayText] = match;
+  const month = monthNumbers[monthName.toLowerCase()];
+  const day = Number(dayText);
+
+  if (!Number.isInteger(month) || !Number.isInteger(day)) {
+    return undefined;
+  }
+
+  return { month, day };
+};
+const parseDateValue = (value: string | undefined, year: number | undefined) => {
+  const parsed = parseMonthDay(value);
+
+  if (!parsed || year === undefined) {
+    return undefined;
+  }
+
+  return Date.UTC(year, parsed.month, parsed.day);
+};
+const dayLabelFromDate = (dateValue: number | undefined, startDateValue: number | undefined) => {
+  if (dateValue === undefined || startDateValue === undefined) {
+    return undefined;
+  }
+
+  const offset = Math.round((dateValue - startDateValue) / dayInMs);
+
+  return offset >= 0 ? `Day ${offset}` : undefined;
+};
+const stopDayDateValue = (stop: ItineraryStop, year: number | undefined) =>
+  parseDateValue(stop.date, year) ??
+  parseDateValue(stop.dateLabel, year) ??
+  parseDateValue(stop.nightRange, year) ??
+  parseDateValue(stop.night, year);
+const segmentDayDateValue = (segment: ItinerarySegment, year: number | undefined) =>
+  parseDateValue(segment.date, year) ?? parseDateValue(segment.dateLabel, year);
+const tripStartDateValue = (stops: ItineraryStop[], segments: ItinerarySegment[], year: number | undefined) => {
+  const candidates = [
+    ...stops.map((stop) => stopDayDateValue(stop, year)),
+    ...segments.map((segment) => segmentDayDateValue(segment, year)),
+  ].filter((value): value is number => Number.isFinite(value));
+
+  if (!candidates.length) {
+    return undefined;
+  }
+
+  return Math.min(...candidates);
 };
 const stopNightSpan = (stop: ItineraryStop) => {
   if (!hasText(stopNightDate(stop))) {
@@ -122,7 +203,7 @@ const stopNightSpan = (stop: ItineraryStop) => {
 
   const startDate = Date.UTC(2026, startMonth, startDay);
   const endDate = Date.UTC(2026, endMonth, endDay);
-  const diffDays = Math.round((endDate - startDate) / 86_400_000);
+  const diffDays = Math.round((endDate - startDate) / dayInMs);
 
   return diffDays >= 0 ? diffDays + 1 : 1;
 };
@@ -365,12 +446,21 @@ class TravelItinerary extends LitElement {
 
     try {
       const parsed = JSON.parse(source.textContent) as Partial<ItineraryData> & { legs?: ItinerarySegment[] };
+      const stops = Array.isArray(parsed.stops) ? parsed.stops : [];
       const segments = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed.legs) ? parsed.legs : [];
+      const tripYear = parseTripYear(parsed.dates);
+      const startDateValue = tripStartDateValue(stops, segments, tripYear);
 
       return {
         ...parsed,
-        stops: Array.isArray(parsed.stops) ? parsed.stops : [],
-        segments,
+        stops: stops.map((stop) => ({
+          ...stop,
+          day: dayLabelFromDate(stopDayDateValue(stop, tripYear), startDateValue) || stop.day,
+        })),
+        segments: segments.map((segment) => ({
+          ...segment,
+          day: dayLabelFromDate(segmentDayDateValue(segment, tripYear), startDateValue) || segment.day,
+        })),
       };
     } catch (error) {
       console.error("Invalid itinerary JSON", error);
