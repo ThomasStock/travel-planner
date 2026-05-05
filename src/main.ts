@@ -1,4 +1,4 @@
-import { mdiArrowRight, mdiBike, mdiFerry, mdiFlagCheckered, mdiFlagTriangle, mdiFullscreen, mdiFullscreenExit, mdiTrain } from "@mdi/js";
+import { mdiArrowRight, mdiBike, mdiFerry, mdiFlagCheckered, mdiFlagTriangle, mdiFullscreen, mdiFullscreenExit, mdiSleep, mdiTrain } from "@mdi/js";
 import L, { type LatLngExpression, type LayerGroup, type Map as LeafletMap } from "leaflet";
 import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
 import leafletStyles from "leaflet/dist/leaflet.css?inline";
@@ -75,6 +75,7 @@ const stopNightLabel = (stop: ItineraryStop) =>
   stop.departure ||
   stop.arrival ||
   (hasText(stopNightDate(stop)) ? `Night ${[stopNightDate(stop), stop.timestamp].filter(hasText).join(" · ")}` : "");
+const stopShowsSleepIcon = (stop: ItineraryStop) => hasText(stop.stay) || (!hasText(stop.departure) && !hasText(stop.arrival) && hasText(stopNightDate(stop)));
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
 const splitRailDate = (label?: string) => {
   const [weekday = "", dateLabel = ""] = hasText(label) ? label.split(/\s+(.+)/) : [];
@@ -207,6 +208,8 @@ const modeIcon = (mode?: TravelMode) => {
       return libraryIcon(mdiArrowRight);
   }
 };
+
+const sleepIcon = () => libraryIcon(mdiSleep);
 
 class TravelItinerary extends LitElement {
   static properties = {
@@ -740,10 +743,21 @@ class TripStop extends LitElement {
     }
 
     .night {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       color: #006c67;
       font-size: 12px;
       font-weight: 760;
       line-height: 1.3;
+    }
+
+    .night svg {
+      width: 13px;
+      height: 13px;
+      display: block;
+      fill: currentColor;
+      flex: 0 0 auto;
     }
 
     button.transfer .night {
@@ -836,6 +850,7 @@ class TripStop extends LitElement {
     const badgeTitle = hasText(markerLabel) ? markerLabel : this.indexTitle || nightIndexTitle(this.index, 1);
     const badgeLabel = hasText(markerLabel) ? markerIcon(this.stop.marker) : this.indexLabel || String(this.index);
     const badgeSizeClass = hasText(markerLabel) ? "" : nightIndexSizeClass(this.indexLabel || String(this.index));
+    const showSleepIcon = stopShowsSleepIcon(this.stop);
 
     return html`
       <button class=${buttonClass} type="button" @click=${this.#select} @pointerenter=${this.#hover}>
@@ -852,7 +867,7 @@ class TripStop extends LitElement {
             <h2>${this.stop.title}</h2>
             ${showFlag ? html`<span class="country" title=${countryName || this.stop.countryCode}>${flag}</span>` : nothing}
           </span>
-          ${showNight ? html`<span class="night">${nightLabel}</span>` : nothing}
+          ${showNight ? html`<span class="night">${showSleepIcon ? sleepIcon() : nothing}<span>${nightLabel}</span></span>` : nothing}
           ${showDescription ? html`<p>${this.stop.description}</p>` : nothing}
         </span>
       </button>
