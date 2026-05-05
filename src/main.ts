@@ -21,6 +21,7 @@ interface ItineraryStop {
   night?: string;
   nightRange?: string;
   stay?: string;
+  departure?: string;
   arrival?: string;
   date?: string;
   dateRange?: string;
@@ -70,11 +71,72 @@ const hasText = (value: unknown): value is string => typeof value === "string" &
 const hasLocation = (stop: ItineraryStop): stop is MappedStop => Number.isFinite(stop.location?.lat) && Number.isFinite(stop.location?.lng);
 const stopNightDate = (stop: ItineraryStop) => stop.nightRange || stop.night || stop.dateRange || stop.date || "";
 const stopNightLabel = (stop: ItineraryStop) =>
-  stop.stay || stop.arrival || (hasText(stopNightDate(stop)) ? `Night ${[stopNightDate(stop), stop.timestamp].filter(hasText).join(" · ")}` : "");
+  stop.stay ||
+  stop.departure ||
+  stop.arrival ||
+  (hasText(stopNightDate(stop)) ? `Night ${[stopNightDate(stop), stop.timestamp].filter(hasText).join(" · ")}` : "");
 const stopLatLng = (stop: MappedStop): LatLngExpression => [stop.location.lat, stop.location.lng];
 const splitRailDate = (label?: string) => {
   const [weekday = "", dateLabel = ""] = hasText(label) ? label.split(/\s+(.+)/) : [];
   return { weekday, dateLabel };
+};
+const monthNumbers: Record<string, number> = {
+  january: 0,
+  february: 1,
+  march: 2,
+  april: 3,
+  may: 4,
+  june: 5,
+  july: 6,
+  august: 7,
+  september: 8,
+  october: 9,
+  november: 10,
+  december: 11,
+};
+const stopNightSpan = (stop: ItineraryStop) => {
+  if (!hasText(stopNightDate(stop))) {
+    return 0;
+  }
+
+  if (!hasText(stop.nightRange)) {
+    return 1;
+  }
+
+  const match = stop.nightRange.match(/^([A-Za-z]+)\s+(\d{1,2})\s*-\s*(?:([A-Za-z]+)\s+)?(\d{1,2})$/);
+
+  if (!match) {
+    return 1;
+  }
+
+  const [, startMonthName, startDayText, endMonthName, endDayText] = match;
+  const startMonth = monthNumbers[startMonthName.toLowerCase()];
+  const endMonth = monthNumbers[(endMonthName || startMonthName).toLowerCase()];
+  const startDay = Number(startDayText);
+  const endDay = Number(endDayText);
+
+  if (!Number.isInteger(startMonth) || !Number.isInteger(endMonth) || !Number.isInteger(startDay) || !Number.isInteger(endDay)) {
+    return 1;
+  }
+
+  const startDate = Date.UTC(2026, startMonth, startDay);
+  const endDate = Date.UTC(2026, endMonth, endDay);
+  const diffDays = Math.round((endDate - startDate) / 86_400_000);
+
+  return diffDays >= 0 ? diffDays + 1 : 1;
+};
+const nightIndexLabel = (startIndex: number, span: number) => (span > 1 ? `${startIndex}-${startIndex + span - 1}` : String(startIndex));
+const nightIndexTitle = (startIndex: number, span: number) => `${span > 1 ? "Nights" : "Night"} ${nightIndexLabel(startIndex, span)}`;
+const nightIndexSizeClass = (label: string) => {
+  if (label.length >= 5) {
+    return "night-index-compact";
+  }
+
+  if (label.length >= 3) {
+    return "night-index-snug";
+  }
+
+  return "";
 };
 const segmentKey = (segment?: ItinerarySegment) =>
   [segment?.from, segment?.to, segment?.mapFrom, segment?.mapTo, segment?.mode, segment?.title].join("|");
@@ -169,7 +231,8 @@ class TravelItinerary extends LitElement {
       min-height: 100vh;
       --mobile-map-height: clamp(240px, 32dvh, 320px);
       --shell-inline-padding: clamp(16px, 4vw, 42px);
-      --page-background: radial-gradient(circle at 12% 10%, rgba(0, 108, 103, 0.14), transparent 26rem),
+      --page-background:
+        radial-gradient(circle at 12% 10%, rgba(0, 108, 103, 0.14), transparent 26rem),
         radial-gradient(circle at 88% 28%, rgba(212, 92, 61, 0.1), transparent 24rem),
         linear-gradient(135deg, #fbfaf7 0%, #f1f7f4 52%, #f8f3ee 100%);
       color: #171b22;
@@ -498,27 +561,31 @@ class TripTimeline extends LitElement {
 
     return html`
       <section class="timeline" aria-label="Itinerary timeline">
-        ${this.stops.map(
-          (stop, index) => {
-            const currentNightIndex = hasText(stopNightDate(stop)) ? ++nightIndex : 0;
+        ${this.stops.map((stop, index) => {
+          const nightSpan = stopNightSpan(stop);
+          const currentNightIndex = nightSpan > 0 ? nightIndex + 1 : 0;
+          const currentNightLabel = currentNightIndex ? nightIndexLabel(currentNightIndex, nightSpan) : "";
+          const currentNightTitle = currentNightIndex ? nightIndexTitle(currentNightIndex, nightSpan) : "";
+          nightIndex += nightSpan;
 
-            return html`
-              <trip-stop
-                data-stop-id=${stop.id}
-                .stop=${stop}
-                .index=${currentNightIndex}
-                .selected=${this.selectedStopId === stop.id}
-                .transfer=${stop.kind === "transfer" && hasText(stop.day)}
-              ></trip-stop>
-              ${index < this.stops.length - 1
-                ? html`<trip-segment
-                    .segment=${this.#segmentAfter(stop, index)}
-                    .active=${segmentKey(this.#segmentAfter(stop, index)) === this.activeSegmentKey}
-                  ></trip-segment>`
-                : nothing}
-            `;
-          },
-        )}
+          return html`
+            <trip-stop
+              data-stop-id=${stop.id}
+              .stop=${stop}
+              .index=${currentNightIndex}
+              .indexLabel=${currentNightLabel}
+              .indexTitle=${currentNightTitle}
+              .selected=${this.selectedStopId === stop.id}
+              .transfer=${stop.kind === "transfer" && hasText(stop.day)}
+            ></trip-stop>
+            ${index < this.stops.length - 1
+              ? html`<trip-segment
+                  .segment=${this.#segmentAfter(stop, index)}
+                  .active=${segmentKey(this.#segmentAfter(stop, index)) === this.activeSegmentKey}
+                ></trip-segment>`
+              : nothing}
+          `;
+        })}
       </section>
     `;
   }
@@ -528,12 +595,16 @@ class TripStop extends LitElement {
   static properties = {
     stop: { attribute: false },
     index: { type: Number },
+    indexLabel: { attribute: false },
+    indexTitle: { attribute: false },
     selected: { type: Boolean, reflect: true },
     transfer: { type: Boolean, reflect: true },
   };
 
   stop: ItineraryStop = { id: "", title: "" };
   index = 1;
+  indexLabel = "";
+  indexTitle = "";
   selected = false;
   transfer = false;
 
@@ -588,6 +659,15 @@ class TripStop extends LitElement {
       font-weight: 850;
       font-size: 12px;
       line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .index.night-index-snug {
+      font-size: 10px;
+    }
+
+    .index.night-index-compact {
+      font-size: 8px;
     }
 
     .index svg {
@@ -709,6 +789,14 @@ class TripStop extends LitElement {
         height: 34px;
         font-size: 12px;
       }
+
+      .index.night-index-snug {
+        font-size: 9px;
+      }
+
+      .index.night-index-compact {
+        font-size: 7px;
+      }
     }
   `;
 
@@ -745,6 +833,9 @@ class TripStop extends LitElement {
     const showNight = !transfer && hasText(nightLabel);
     const showDescription = !transfer && hasText(this.stop.description);
     const buttonClass = transfer ? "transfer" : showBadge ? nothing : "no-badge";
+    const badgeTitle = hasText(markerLabel) ? markerLabel : this.indexTitle || nightIndexTitle(this.index, 1);
+    const badgeLabel = hasText(markerLabel) ? markerIcon(this.stop.marker) : this.indexLabel || String(this.index);
+    const badgeSizeClass = hasText(markerLabel) ? "" : nightIndexSizeClass(this.indexLabel || String(this.index));
 
     return html`
       <button class=${buttonClass} type="button" @click=${this.#select} @pointerenter=${this.#hover}>
@@ -755,11 +846,7 @@ class TripStop extends LitElement {
               ${hasText(transferDate.dateLabel) ? html`<span class="date-part">${transferDate.dateLabel}</span>` : nothing}
             </span>`
           : nothing}
-        ${showBadge
-          ? html`<span class="index" title=${hasText(markerLabel) ? markerLabel : `Night ${this.index}`}>
-              ${hasText(markerLabel) ? markerIcon(this.stop.marker) : this.index}
-            </span>`
-          : nothing}
+        ${showBadge ? html`<span class=${`index ${badgeSizeClass}`.trim()} title=${badgeTitle}>${badgeLabel}</span>` : nothing}
         <span class="content">
           <span class="heading">
             <h2>${this.stop.title}</h2>
@@ -821,14 +908,7 @@ class TripSegment extends LitElement {
       transform: translateX(-50%);
       width: 0;
       border-left: 2px solid rgba(0, 108, 103, 0.24);
-      border-image: repeating-linear-gradient(
-          to bottom,
-          currentColor 0,
-          currentColor 9px,
-          transparent 9px,
-          transparent 15px
-        )
-        1;
+      border-image: repeating-linear-gradient(to bottom, currentColor 0, currentColor 9px, transparent 9px, transparent 15px) 1;
       color: rgba(0, 108, 103, 0.38);
     }
 
@@ -1079,7 +1159,14 @@ class TripSegment extends LitElement {
     const distance = hasText(segment.distance) ? segment.distance : "";
     const routeUrl = hasText(segment.routeUrl) ? segment.routeUrl : "";
 
-    if (!hasText(segment.title) && !hasText(segment.description) && !hasText(segment.day) && facts.length === 0 && !hasText(distance) && !hasText(routeUrl)) {
+    if (
+      !hasText(segment.title) &&
+      !hasText(segment.description) &&
+      !hasText(segment.day) &&
+      facts.length === 0 &&
+      !hasText(distance) &&
+      !hasText(routeUrl)
+    ) {
       return nothing;
     }
 
@@ -1114,7 +1201,13 @@ class TripSegment extends LitElement {
           ${hasText(segment.description) ? html`<p>${segment.description}</p>` : nothing}
           ${hasText(routeUrl)
             ? html`<span class="actions">
-                <a class="route-link" href=${routeUrl} target="_blank" rel="noopener noreferrer" @click=${(event: Event) => event.stopPropagation()}>
+                <a
+                  class="route-link"
+                  href=${routeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  @click=${(event: Event) => event.stopPropagation()}
+                >
                   <span class="komoot-icon" aria-hidden="true">k</span>
                   <span>Open in komoot</span>
                 </a>
@@ -1292,11 +1385,20 @@ class TripMap extends LitElement {
         font-size: 13px;
         font-weight: 850;
         line-height: 1;
+        letter-spacing: -0.02em;
         transition:
           transform 160ms ease,
           box-shadow 160ms ease,
           background-color 160ms ease,
           border-color 160ms ease;
+      }
+
+      .map-stop-marker.night-index-snug {
+        font-size: 10px;
+      }
+
+      .map-stop-marker.night-index-compact {
+        font-size: 7.5px;
       }
 
       .map-stop-marker.selected {
@@ -1561,15 +1663,21 @@ class TripMap extends LitElement {
 
     mappedStops.forEach((stop) => {
       const selected = stop.id === this.selectedStopId;
-      const currentNightIndex = hasText(stopNightDate(stop)) ? ++nightIndex : 0;
+      const nightSpan = stopNightSpan(stop);
+      const currentNightIndex = nightSpan > 0 ? nightIndex + 1 : 0;
+      const currentNightLabel = currentNightIndex ? nightIndexLabel(currentNightIndex, nightSpan) : "";
+      const currentNightTitle = currentNightIndex ? nightIndexTitle(currentNightIndex, nightSpan) : "Stop";
+      nightIndex += nightSpan;
       const markerLabel = markerTitle(stop.marker);
-      const label = markerIconMarkup(stop.marker) || (currentNightIndex ? String(currentNightIndex) : "");
+      const label = markerIconMarkup(stop.marker) || currentNightLabel;
+      const labelSizeClass = markerLabel ? "" : nightIndexSizeClass(currentNightLabel);
       const labelClass = label ? "" : " empty";
-      const tooltipPrefix = markerLabel || (currentNightIndex ? `Night ${currentNightIndex}` : "Stop");
+      const tooltipPrefix = markerLabel || currentNightTitle;
       const marker = L.marker(stopLatLng(stop), {
         icon: L.divIcon({
           className: "",
-          html: `<span class="map-stop-marker${selected ? " selected" : ""}${labelClass}">${label}</span>`,
+          html: `<span class="map-stop-marker${selected ? " selected" : ""}${labelClass}${labelSizeClass ? ` ${labelSizeClass}` : ""}">${label}</span>`,
+          iconSize: [26, 26],
           iconAnchor: [13, 13],
         }),
       });
